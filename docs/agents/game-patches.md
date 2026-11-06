@@ -54,6 +54,7 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 | `build` → `game` | 60 fps frame step and render scale | frame rate | blocked: frame-step stubs have no function-matched form yet | judgement | 1 | [The Legend of Zelda: Tears of the Kingdom](../../dm/games/0100F2C0115B6000/README.md) | the game's own timing object |
 | `build` → `game` | 60 fps frame step and render scale (ksys::VFR) | frame rate | blocked: frame-step stubs have no function-matched form yet | judgement | 1 | [The Legend of Zelda: Breath of the Wild](../../dm/games/01007EF00011E000/README.md) | the game's own frame code; the frame-step state page is general |
 | `build` → `game` | 60 fps frame step: the KIDS frame task and frame-rate block | frame rate | blocked: frame-step stubs have no function-matched form yet | judgement | 1 | [Hyrule Warriors: Age of Calamity](../../dm/games/01002B00111A2000/README.md) | the game's own frame code; only the host's frame-step state page is shared. Fire Emblem: Three Houses and Taiko Risshiden V DX run on KTGL too, with other frame code |
+| `build` → `game` | experimental output timing | frame rate | blocked: addresses belong to this build; simulation and audio correctness above 60 fps remain unverified | judgement | 1 | [Star Fox](../../dm/games/0400E88025B1A000/README.md) | the native desired-frame-time and current-clock paths in the output-stage loop |
 | `build` → `game` | frame step floor 2 → 1 vsync, and its frame step | frame rate | blocked: frame-step stubs have no function-matched form yet | judgement | 1 | [Paper Mario: The Thousand-Year Door](../../dm/games/0100ECD018EBE000/README.md) | the game's own clock floor and step |
 | `build` → `game` | scene resolution scale | rendering | blocked: frame-step stubs have no function-matched form yet | judgement | 1 | [Star Fox](../../dm/games/0400E88025B1A000/README.md) | the game's own settings read in its renderer |
 | `build` → `game` | screen shape: the sizes, the view, the layouts' projection and their edge widgets (DM_SCREEN_ASPECT) | rendering | blocked: the stubs have no function-matched form yet | judgement | 1 | [Animal Crossing: New Horizons](../../dm/games/01006F8002326000/README.md) | the output size is the host's, but where the game takes its sizes, its cameras and its layouts are this build's code |
@@ -82,7 +83,7 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 | [Paper Mario: The Thousand-Year Door](#paper-mario-the-thousand-year-door) | 1 | 0 | 1 | 0 | 0 | `build` → `game` |
 | [Pokémon Brilliant Diamond](#pokémon-brilliant-diamond) | 0 | 0 | 0 | 0 | 1 | `build` → `engine` |
 | [Pokémon Legends: Arceus](#pokémon-legends-arceus) | 0 | 0 | 0 | 1 | 0 | `game` |
-| [Star Fox](#star-fox) | 0 | 0 | 1 | 0 | 0 | `build` → `game` |
+| [Star Fox](#star-fox) | 0 | 0 | 5 | 0 | 1 | `build` → `game` ×2 |
 | [Subnautica](#subnautica) | 1 | 0 | 0 | 0 | 0 | `build` → `game` |
 | [Subnautica: Below Zero](#subnautica-below-zero) | 1 | 0 | 0 | 0 | 0 | `build` → `game` |
 | [Super Mario 3D All-Stars: Super Mario Sunshine](#super-mario-3d-all-stars-super-mario-sunshine) | 2 | 0 | 0 | 0 | 0 | `build` → `game` |
@@ -463,10 +464,16 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 [Star Fox](../../dm/games/0400E88025B1A000/README.md), `0400E88025B1A000`, [patches.py](../../dm/games/0400E88025B1A000/patches.py).
 
 - **`build` → `game`**, rendering, blocked: frame-step stubs have no function-matched form yet, judgement: scene resolution scale. The game's own settings read in its renderer
+- **`build` → `game`**, frame rate, blocked: addresses belong to this build; simulation and audio correctness above 60 fps remain unverified, judgement: experimental output timing. The native desired-frame-time and current-clock paths in the output-stage loop
 
-- **v131072 `main`** `a7730d0f…` ([patches.py:25](../../dm/games/0400E88025B1A000/patches.py#L25))
+- **v131072 `main`** `a7730d0f…` ([patches.py:69](../../dm/games/0400E88025B1A000/patches.py#L69))
+  - frame step `+0xb444adc`: experimental native output frame time (DM_STARFOX_RENDER_HZ)
+  - frame step `+0xb444c88`: uncapped output uses the original current-clock path; no simulation sleep removed
   - frame step `+0xb4498ac`: scene resolution scale from the host (DM_RESOLUTION_SCALE; 0 = the game's own)
+  - frame step `+0xba66464`: experiment display refresh fallback; SDK service semantics remain unimplemented
+  - frame step `+0xba69750`: experiment display refresh fallback; SDK service semantics remain unimplemented
   - launcher capabilities: RESOLUTION_SCALE
+  - host [loader.c:323](../../dm/host/loader.c#L323): build check
 
 ### Subnautica
 

@@ -119,6 +119,15 @@ HLE_FORCE("_ZN2nn2vi31QueryDisplayBufferMaxResolutionEPNS0_19BufferMaxResolution
 }
 static uint32_t buf_max(int *dw, int *dh) {   // the index into k_buf_max, and the display's pixels (0 x 0 when not known)
     uint32_t r = 1; int w = 0, h = 0;
+    const char *override = getenv("DM_VI_BUFFER_MAX");
+    if (override && *override) {
+        char *end; long v = strtol(override, &end, 10);
+        if (!*end && v >= 0 && v < 4) {
+            *dw = k_buf_max[v][0]; *dh = k_buf_max[v][1];
+            static atomic_int once; if (!atomic_exchange(&once, 1)) LOG("vi: buffer maximum override %dx%d (DM_VI_BUFFER_MAX)", *dw, *dh);
+            return (uint32_t)v;
+        }
+    }
     if (dm_opmode() == 1 && front_display_pixels(&w, &h)) {
         if (w < h) { int t = w; w = h; h = t; }
         r = 0; for (uint32_t i = 0; i < 4; i++) if (w >= k_buf_max[i][0] && h >= k_buf_max[i][1]) r = i;
