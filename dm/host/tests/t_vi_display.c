@@ -25,5 +25,12 @@ int main(void) {
         uint32_t b = 99; uint64_t w = 0, h = 0;
         CHECK(h_vi_BufMaxRes(&b, NULL) == RES_OK && b == c[i].buf && layer(&w, &h) && w == c[i].lw && h == c[i].lh, c[i].what);
     }
+    setenv("DM_VI_BUFFER_MAX", "3", 1); g_mode = 1; g_ounce = 1; g_w = 1920; g_h = 1080;
+    uint32_t b = 99; uint64_t w = 0, h = 0;
+    CHECK(h_vi_BufMaxRes(&b, NULL) == RES_OK && b == 3 && layer(&w, &h) && w == 3840 && h == 2160,
+          "explicit 4K buffer and layer on a smaller display for supersampling");
+    setenv("DM_VI_BUFFER_MAX", "invalid", 1);
+    CHECK(h_vi_BufMaxRes(&b, NULL) == RES_OK && b == 1, "invalid override keeps the display's own buffer maximum");
+    unsetenv("DM_VI_BUFFER_MAX");
     printf("== vi display %d checks, %d failed ==\n", checks, fails); return fails != 0;
 }

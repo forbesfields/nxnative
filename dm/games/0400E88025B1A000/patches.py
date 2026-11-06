@@ -22,6 +22,50 @@ def frame_step(ctx):
     emit(B(here(), 0xb4498b0))                           # done
     put(0xb4498ac, [B(0xb4498ac, start)], 'scene resolution scale from the host (DM_RESOLUTION_SCALE; 0 = the game\'s own)')
 
+    # Experimental output timing, state +0xa4: -1 = original, 0 = native unlimited path, 120 = desired frame time 1/120.
+    # The active sleeper was observed at main+0xb447270 on the output-stage thread. Leave the simulation thread alone.
+    site(0xb444adc, 'e12342bd2820201eed000054')
+    ctx.area(0xb444adc)
+    start = here()
+    emit(ADRP(9, here(), state))
+    emit(0xb940a528)                                     # ldr w8,[x9,#0xa4]
+    emit(0x37f80108)                                     # tbnz w8,#31,original (+32)
+    emit(0x340000a8)                                     # cbz w8,unlimited (+20)
+    emit(0x1e220101)                                     # scvtf s1,w8
+    emit(0x1e2e1000)                                     # fmov s0,#1.0
+    emit(0x1e211801)                                     # fdiv s1,s0,s1
+    emit(B(here(), 0xb444ae8))
+    emit(0xf94033e0)                                     # unlimited: ldr x0,[sp,#0x60], the engine object
+    emit(B(here(), 0xb444be4))                           # native zero desired-time path
+    emit(0xbd4223e1)                                     # original: ldr s1,[sp,#0x220]
+    emit(0x1e202028)                                     # fcmp s1,#0.0
+    emit(0x5400004c)                                     # b.gt positive (+8)
+    emit(B(here(), 0xb444b00))
+    emit(B(here(), 0xb444ae8))
+    put(0xb444adc, [B(0xb444adc, start), 0xd503201f, 0xd503201f], 'experimental native output frame time (DM_STARFOX_RENDER_HZ)')
+
+    site(0xb444c88, 'e81740b9')                          # ldr w8,[sp,#0x14]
+    start = here()
+    emit(ADRP(9, here(), state))
+    emit(0xb940a528)                                     # ldr w8,[x9,#0xa4]
+    emit(0x35000048)                                     # cbnz w8,original (+8)
+    emit(B(here(), 0xb444d7c))                           # uncapped: original current-clock path, skipping both output waits
+    emit(0xb94017e8)                                     # original ldr w8,[sp,#0x14]
+    emit(B(here(), 0xb444c8c))
+    put(0xb444c88, [B(0xb444c88, start)], 'uncapped output uses the original current-clock path; no simulation sleep removed')
+
+    for off in (0xba66464, 0xba69750):
+        site(off, '88078052')
+        ctx.area(off)
+        start = here()
+        emit(0x52800788)                                 # original 60 Hz fallback
+        emit(ADRP(9, here(), state))
+        emit(0xb940a529)                                 # ldr w9,[x9,#0xa4]
+        emit(0x37f80049)                                 # tbnz w9,#31,done (+8)
+        emit(0x52800f08)                                 # experiment's 120 Hz display fallback
+        emit(B(here(), off + 4))
+        put(off, [B(off, start)], 'experiment display refresh fallback; SDK service semantics remain unimplemented')
+
 FRAME_STEP = {'a7730d0f74d168d90422354c8317f76f': frame_step}
 # The launcher offers DM_RESOLUTION_SCALE (dm/games/settings.tsv) only for this build
 CAPABILITIES = {'a7730d0f74d168d90422354c8317f76f': ('RESOLUTION_SCALE',)}
@@ -32,4 +76,7 @@ BINDING = [
     {'what': 'scene resolution scale', 'now': 'build', 'goal': 'game', 'purpose': 'rendering',
      'why': "the game's own settings read in its renderer",
      'blocked': 'frame-step stubs have no function-matched form yet'},
+    {'what': 'experimental output timing', 'now': 'build', 'goal': 'game', 'purpose': 'frame rate',
+     'why': 'the native desired-frame-time and current-clock paths in the output-stage loop',
+     'blocked': 'addresses belong to this build; simulation and audio correctness above 60 fps remain unverified'},
 ]

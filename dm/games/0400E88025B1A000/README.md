@@ -47,6 +47,48 @@ On an M5 Pro with 24 GB, macOS 27.0, handheld mode and Resolution 100% give 1920
 
 `python3 scripts/build_ipa_from_nsp.py <folder> --platform mac` builds the Mac shaders and the host and prints the run command. Headless, through `DM_CTL`: the title is up about 40 s after boot and `A` starts the game. The prologue cinematic follows, about 4 minutes on every run (a save holds no progress yet, and skipping it was not tried), then the tutorial's first question, about 300 s after boot: `LDown`, `A` answers no. Shots of the swap chain hold the picture in their top-left quarter. A `shot` takes about 165 ms: a hitch every few seconds in a run that takes them is the shot's.
 
+## Experimental Mac test modes
+
+The optional selector in `mac_test_launcher.m` offers **1080p — Uncapped**,
+**4K — Uncapped**, and **1080p — 120 fps** in one existing test app. All modes use
+one RomFS, shader set and save folder. `scripts/configure_starfox_test.py` updates
+only that app's executables and rewritten main, backing up changed files only.
+It deliberately accepts the isolated `org.nxnative.starfox.120hz-test` bundle,
+not the normal app.
+
+The build-gated output stubs use state +0xa4: -1 (unset) runs the original game
+paths, 0 selects its zero desired-frame-time path and current-clock update,
+and 120 selects its positive 1/120-second interval. The uncapped path bypasses
+both output-stage waits; it does not remove a simulation-thread sleep or scale
+the game clock. The two refresh fallbacks use 120 only during the experiment;
+correct SDK VI refresh/capability service semantics remain open.
+
+Uncapped modes also set `DM_PRESENT_HZ=0`, `DM_PRESENT_LINK=0` and
+`DM_PRESENT_VSYNC=0`. This removes software and Metal synchronization limits;
+the number of frames the physical screen can display is still finite. 4K uses
+docked mode, `DM_VI_BUFFER_MAX=3` and scene Resolution 100%, then scales the
+3840x2160 output to the Mac's screen. The 1080p modes use handheld mode and
+`DM_VI_BUFFER_MAX=1`. Render-pass dimensions, not screenshot size alone, establish
+the scene resolution.
+
+The source is based on the verified Mac integration so the existing shader
+libraries remain usable. Build the host with `make -C dm/host GAME=0400E88025B1A000`,
+rewrite main with this profile, then run:
+
+```sh
+python3 scripts/configure_starfox_test.py '/path/Star Fox 120 Hz Test.app' \
+  --patched /path/to/rewritten-main --backup /path/to/new-backup-folder
+```
+
+On the M5 Pro 24 GB, macOS 27.0, the player reported roughly 300 fps in the
+1080p uncapped flight and confirmed normal movement, aiming and audio. Pass
+captures showed 1920x1080 scene color/depth targets in that mode and 3840x2160
+scene targets in 4K mode. This is opening-tutorial evidence, not a campaign or
+4K frame-rate guarantee.
+
+The test modes remain experimental: frame throughput does not prove correct
+movement speed, physics, audio/movie sync or later-level stability.
+
 ## Found on this game
 
 - The avatar settings present the virtual camera's picture into an NVN window of their own; the host makes it an off-screen window: [GameChat queries from the title screen (SDK 21)](../../../docs/reference/services.md#gamechat-queries-from-the-title-screen-sdk-21).

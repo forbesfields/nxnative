@@ -295,10 +295,11 @@ static void read_layout(module_t *m, const char *dir) {
 // target, 0 = the game's own interval logic. The profile's fps_target, overridden by DM_FPS_TARGET (0, 30 or 60); the graphics layer decides the steps and paces presents
 // (hle_nvn.c fstep_tick)
 uint8_t *dm_fps_state;
+static const char *g_fps_build;
 static const char *g_fps_mod;   // the module holding the state page (for the log)
 static void install_fps_state(module_t *m) {
     if (m->fps_state_off + 0x40 > m->size || m->fps_state_off < m->key_page_off + m->key_page_size) die("%s: frame step state page out of range", m->name);
-    dm_fps_state = m->base + m->fps_state_off; g_fps_mod = m->name;
+    dm_fps_state = m->base + m->fps_state_off; g_fps_mod = m->name; g_fps_build = m->build_id;
 }
 // The settings in the state page, written when the game starts (main.c, after host loading): on iOS the loading runs at app launch, before the launcher has set DM_FPS_TARGET and
 // DM_RENDER_SCALE (Launcher.swift), and nothing reads the page before the game runs
@@ -318,6 +319,15 @@ void dm_fps_state_apply(void) {
     if (qs && *qs) { char *end; q = strtof(qs, &end); if (end == qs || *end || !(q == 0 || (q >= 0.25f && q <= 1.0f))) { LOG("[RED] DM_RESOLUTION_SCALE=%s: must be 0 or 0.25 to 1.0; keeping the game's scale", qs); q = 0; }
                      else if (q > 0) LOG("%s: scene rendered at %.2f of the target (DM_RESOLUTION_SCALE; only builds with that stub follow it)", g_fps_mod, q); }
     memcpy(dm_fps_state + 0xa0, &q, sizeof q);
+    // The Star Fox experiment's native output timer: -1 keeps the game, 0 is uncapped, 120 selects its positive desired-frame-time path.
+    if (g_fps_build && !strcmp(g_fps_build, "a7730d0f74d168d90422354c8317f76f")) {
+        const char *hz = getenv("DM_STARFOX_RENDER_HZ"); int32_t rate = -1;
+        if (hz && !strcmp(hz, "0")) rate = 0;
+        else if (hz && !strcmp(hz, "120")) rate = 120;
+        else if (hz) LOG("[RED] DM_STARFOX_RENDER_HZ must be 0 or 120; keeping the game's output timing");
+        memcpy(dm_fps_state + 0xa4, &rate, sizeof rate);
+        LOG("main: Star Fox output timer %d Hz (-1 = game's own, 0 = uncapped)", rate);
+    }
     // Screen shape: DM_SCREEN_ASPECT, the screen's width / height between 1.3 and 1.77, makes the builds with screen-shape stubs
     // (Breath of the Wild 1.9.0's patches.py) render that shape: the output keeps its width (1920) and takes the height that gives the ratio, a multiple of 48 so the
     // 2/3-size layout space (1280 wide) stays whole: 1.43 → 1920x1344 and 1280x896. State +0x48 u32 output height, +0x4c u32 layout height, +0x50 its float; 0 = 16:9

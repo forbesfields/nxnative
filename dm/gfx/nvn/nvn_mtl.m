@@ -13401,7 +13401,10 @@ static int present_now(const tex_t *t, double period, uint64_t frame, uint64_t t
     if (!layer) return 0;
     if (g_present_layer_resident != layer) { [g_q4 addResidencySet:layer.residencySet]; g_present_layer_resident = layer; }
 #if TARGET_OS_OSX
-    if (!layer.displaySyncEnabled) layer.displaySyncEnabled = YES;   // Windowed mode follows the display's vsync to prevent tearing
+    const char *vsync = getenv("DM_PRESENT_VSYNC");
+    BOOL sync = !(vsync && !strcmp(vsync, "0"));
+    if (layer.displaySyncEnabled != sync) layer.displaySyncEnabled = sync;
+    static int sync_logged; if (!sync_logged) { sync_logged = 1; MLOG("displaySyncEnabled=%d (DM_PRESENT_VSYNC; default 1)", sync); }
 #endif
     present_pipeline(layer.pixelFormat);   // Same as the original path: the first frame compiles the pipeline before taking the drawable
     if (g_grab_cb) grab_present(src, crop, layer.drawableSize);   // Game picture needed by the whole-window screenshot (peek without the lock first; the real take locks inside the function)
