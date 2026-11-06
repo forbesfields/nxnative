@@ -116,8 +116,9 @@ steering observed through the touch controls. A 720p sample on the same driver
 and native quality settings reported 49.4 presented fps / 19.53 ms GPU time;
 other tutorial samples and screenshots were slower. The smoother 540p preset
 is the default for the RP5 test installation. These are different workloads;
-there is no claim of a comparable whole-game speedup. Full campaign, physical
-controller feel and long-term stability remain unchecked.
+there is no claim of a comparable whole-game speedup. The player later accepted
+the built-in controls and mostly 60 fps flight, but reached the GPU loss below.
+Full campaign and long-term stability remain unchecked.
 
 Build the C# translator from the changed sources with .NET 10 before using
 `pack_android.py`; the checked-in translator binaries are not updated by this
@@ -134,3 +135,12 @@ backend offers compatible 32-bit component views for unknown scalar classes;
 this enables the observed zero clear of an integer volume. Arbitrary integer
 payloads through floating-point views can still lose NaN or denormal bit
 patterns and are not established by that zero-clear test.
+
+Player testing reached the tutorial's live-fire exercise. The player reported
+good built-in controls and mostly 60 fps with occasional drops, then a crash
+after 983 seconds of the run. The log reports `VK_ERROR_DEVICE_LOST` at
+submission 50951 and exits deliberately; Android reports EXIT_SELF, with
+4.1 GiB PSS / 4.2 GiB RSS, rather than a low-memory kill. Thus Turnip 25.3
+is also not established as stable. A diagnostic run with only `DM_VK_UBWC=0`
+added to the 540p preset is testing the compressed-colour-image path; it is
+not a verified fix. Save data was copied before this trial.
