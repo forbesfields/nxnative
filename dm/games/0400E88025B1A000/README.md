@@ -141,6 +141,18 @@ good built-in controls and mostly 60 fps with occasional drops, then a crash
 after 983 seconds of the run. The log reports `VK_ERROR_DEVICE_LOST` at
 submission 50951 and exits deliberately; Android reports EXIT_SELF, with
 4.1 GiB PSS / 4.2 GiB RSS, rather than a low-memory kill. Thus Turnip 25.3
-is also not established as stable. A diagnostic run with only `DM_VK_UBWC=0`
-added to the 540p preset is testing the compressed-colour-image path; it is
-not a verified fix. Save data was copied before this trial.
+is also not established as stable. Save data was copied before stability trials.
+
+One-variable trials on Turnip 25.3 did not fix the fault: `DM_VK_UBWC=0`
+failed after 392 seconds, `DM_VK_ZSHARE=0` after 130 seconds, Turnip
+`flushall` after 352 seconds, and `IR3_SHADER_DEBUG=nouboopt` after 189
+seconds. Turnip `syncdraw` also produced kernel GPU faults before a manual
+stop. These elapsed times cover different tutorial routes and do not rank
+the settings by reliability.
+
+An unmodified Mesa 26.2.6 source build for API 33 passed the 600-frame
+graphics self-test with `android-strict=false` (the strict extension filter
+hides its implemented placed-memory dependency on Android 13). The game
+still lost the GPU after about 130 seconds. Disabling the replay worker
+caused missing text on both drivers and was rejected. Turnip 25.3 and the
+baseline 540p preset are restored; none of these trials is a stability fix.

@@ -55,6 +55,18 @@ static int dec_addr(void *ctx, uint64_t *field, uint64_t len, int writable) {
 }
 static int dec_obj(void *ctx, int kind, uint64_t *field, uint8_t *payload, uint32_t size);
 static const cap_ops rp_dec = {dec_addr, dec_obj};
+// A live game's BufferInitialize / GetAddress calls place these ranges before it records them. Those calls are not records, so the replayer must request placement
+// itself. Keep ordinary texture storage lazy: placing every captured pool also places CPU-only texture bytes and can exhaust the device's GPU memory budget.
+static int dec_buffer_addr(void *ctx, uint64_t *field, uint64_t len, int writable) {
+    uint64_t v = *field;
+    if (!dec_addr(ctx, field, len, writable)) return 0;
+    if (*field && cap_is_addr(v)) {
+        uint64_t left = rp_rg[cap_addr_region(v)].size - cap_addr_off(v);
+        mtl_pool_need((const void *)(uintptr_t)*field, len < left ? len : left, "a captured buffer");
+    }
+    return 1;
+}
+static const cap_ops rp_buffer_dec = {dec_buffer_addr, dec_obj};
 static int dec_obj(void *ctx, int kind, uint64_t *field, uint8_t *payload, uint32_t size) {
     (void)ctx; uint64_t v = *field; if (!v) return 1;
     int k = cap_obj_kind(v); uint64_t i = cap_obj_index(v);
@@ -375,7 +387,7 @@ __attribute__((visibility("default"))) int nxhost_replay(int argc, char **argv) 
             for (size_t i = 0; i < rp_nch; i++) { cap_chunk *c = &rp_ch[i].c; if (c->submit != s || c->tag != CAP_SEGM) continue;
                 uint32_t idx, len; memcpy(&idx, rp_ch[i].d, 4); memcpy(&len, rp_ch[i].d + 4, 4);
                 for (uint32_t o = 0; o < len;) { op_hdr h; memcpy(&h, rp_seg[idx] + o, 8); if (h.size < 8 || o + h.size > len) RFAIL("submit %u segment %u: corrupt record at %u", s, idx, o);
-                    if (!cap_rec_fields(h.op, rp_seg[idx] + o + 8, h.size, &rp_dec, NULL) || rp_bad) RFAIL("submit %u segment %u: op %u at %u does not decode", s, idx, h.op, o); o += h.size; } }
+                    if (!cap_rec_fields(h.op, rp_seg[idx] + o + 8, h.size, &rp_buffer_dec, NULL) || rp_bad) RFAIL("submit %u segment %u: op %u at %u does not decode", s, idx, h.op, o); o += h.size; } }
             uint64_t *hs = malloc((size_t)MAX(nh, 1) * 8); for (uint32_t i = 0; i < nh; i++) { if (top[i] >= rp_nseg || !rp_seg[top[i]]) RFAIL("submit %u: handle %u names no segment", s, i); hs[i] = (uint64_t)(uintptr_t)rp_seg[top[i]]; }
             setup_ns += mono() - t0;
             if (s == 1) {   // untimed: what the captured state makes the replay do before it records (images of the registered textures made and uploaded, descriptors written)
