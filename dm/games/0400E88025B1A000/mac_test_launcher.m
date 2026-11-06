@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
             if ([alert runModal] != NSAlertFirstButtonReturn) return 0;
             mode = [NSString stringWithFormat:@"%@-%@", resolutions[res.indexOfSelectedItem], rates[fps.indexOfSelectedItem]];
             [prefs setObject:mode forKey:@"test.mode"];
+            [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];   // the host owns the game's windows, as in Launcher.swift
         }
         parts = [mode componentsSeparatedByString:@"-"];
         BOOL fourK = [parts[0] isEqualToString:@"4k"], uncapped = [parts[1] isEqualToString:@"uncapped"];
