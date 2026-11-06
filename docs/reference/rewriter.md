@@ -375,3 +375,26 @@ To enroll a cut for any game's own module:
 ## Checking a rewriter change
 
 Rewrite every extracted module of every title with the old and the new `patch_nso.py` and compare all outputs; only `build_src.sha256` (the rewriter's own hash) may differ for titles the change is not meant for.
+
+## Android pointer authentication
+
+**Symptom.** A guest stops with SIGILL on `RETAB` during SDK initialization on
+an Armv8 Android CPU without pointer authentication.
+
+**Cause.** The guest SDK uses authenticated returns and context signatures.
+Signing hints can act as no-ops on an older CPU, while authenticated return
+and explicit authentication instructions fault.
+
+**Fix.** The Android rewriter removes the paired compiler signing and
+authentication operations and lowers authenticated returns to ordinary returns.
+SDK context `PACGA` operations go through a saved-register gate with a random
+process key and SipHash-2-4 over both complete 64-bit operands. Only the upper
+32 result bits are kept. Context comparisons and failure traps are unchanged.
+The gate reads the original LR and SP from the gate stub's saved frame, rather
+than the host call's return address. These signatures are process-local and
+are not hardware QARMA signatures. Unsupported forms stop rewriting explicitly.
+Apple output keeps the original hardware instructions.
+
+**Found on.** [Star Fox](../../dm/games/0400E88025B1A000/README.md#armv8-cpu-compatibility),
+SDK 21.4.4, Snapdragon 865. Rewriter regression, MAC reference-vector and gate
+register tests pass; game compatibility is still being checked.

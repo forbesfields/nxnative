@@ -75,6 +75,20 @@ HLE_FORCE("_ZN2nn2vi12DestroyLayerEPNS0_5LayerE", "destroy layer; host static ob
 HLE_FORCE("_ZN2nn2vi12CloseDisplayEPNS0_7DisplayE", "close display; host static object", void, h_vi_CloseDisp, void *disp) { (void)disp; }
 HLE_FORCE("_ZN2nn2vi8FinalizeEv", "display service shutdown; the host has no vi service", void, h_vi_Fini, void) {}
 
+// SDK 21's vi2 query cannot use the SDK's service object on the host. The enum
+// is 720p, 1080p, 1440p, 2160p; a smaller display buffer also sizes a game's
+// render targets, unlike scaling only the Android presentation surface.
+HLE_FORCE("_ZN2nn2vi31QueryDisplayBufferMaxResolutionEPNS0_19BufferMaxResolutionEPKNS0_7DisplayE", "largest display buffer: 1080p, or DM_WINDOW_SIZE", Result, h_vi_BufMaxRes,
+          uint32_t *out, const void *disp) {
+    (void)disp;
+    static const char *const sizes[] = {"1280x720", "1920x1080", "2560x1440", "3840x2160"};
+    const char *e = getenv("DM_WINDOW_SIZE"); uint32_t r = 1;
+    for (uint32_t i = 0; e && i < 4; i++) if (!strcmp(e, sizes[i])) r = i;
+    static atomic_int once; if (!atomic_exchange(&once, 1)) LOG("vi::QueryDisplayBufferMaxResolution: %s", sizes[r]);
+    if (out) *out = r;
+    return RES_OK;
+}
+
 // ---------- Switch 2 SDKs: HDR, VRR and extended swap intervals ----------
 // The SDK's versions check the display against its own default display object and forward the layer to vi2, whose layer object the host never made (Donkey Kong Bananza: a call
 // through null from SetLayerNextHdrContentGamutMetadata, main+0x2036f4). The host's output is SDR at a fixed refresh rate: no HDR output, no VRR, and the layer metadata has

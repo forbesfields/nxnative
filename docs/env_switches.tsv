@@ -1,3 +1,10 @@
+DM_MODEL_LOD	switch	Star Fox build a7730d0f: native model LOD plus one (0 automatic, 1 full, 2 LOD1, through 16; clamped by the engine). Restart required.
+DM_RESOLUTION_SCALE	switch	Star Fox build a7730d0f: scene scale from 0 to 1; 0 keeps the engine setting. Vulkan has no DLSS evaluation replacement; use 0.75 or 1 on the tested path. Restart required.
+DM_SCENE_SIZE	switch	Star Fox build a7730d0f: native scene target as widthxheight before scaled allocations, e.g. 960x540. Unset keeps the engine setting. Restart required.
+DM_SHADOW_SIZE	switch	Star Fox build a7730d0f: native shadow size, 0 (engine setting), 512, 1024, 2048 or 4096. Restart required.
+DM_TEXTURE_BUDGET_MB	switch	Star Fox build a7730d0f: native texture streaming budget in MiB, 0 (engine setting) or 128 to 4096. Restart required.
+DM_TEXTURE_STREAMING	switch	Star Fox build a7730d0f: native texture streaming policy, 0 (engine setting), 1 (all) or 2 (blurry). Applied to initialization, package loading, renderer updates and cleanup. Restart required.
+DM_VK_ROBUST	diagnostic	Android, default 0: enable supported core robust buffer access and robustness2 buffer/image access and null descriptors when creating the device. Restart required.
 name	class	meaning
 DM_AB	diagnostic	`=<frames>` splits the run into phases of that many frames and alternates every switch set to `ab` (on in the odd phases); logs an `[ab]` line per phase with GPU and frame time and attachment traffic
 DM_ALIAS_SIZE	diagnostic	`=<bytes>` gives the guest an alias region of that size instead of the profile's (at least 256 MB, whole host pages; the heap and stacks stay as they are): `0x1000000000`, the Switch's 64 GB, holds what a game reserves unchanged; the NSP script's address region check sets it (Mac only: an iPhone has no room)

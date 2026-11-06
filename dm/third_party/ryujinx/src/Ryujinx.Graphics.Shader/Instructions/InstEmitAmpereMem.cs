@@ -43,6 +43,8 @@ namespace Ryujinx.Graphics.Shader.Instructions
             x(0xb60, InstName.Tex, ATex, InstProps.Tex);
             x(0x361, InstName.Tex, ATex, InstProps.Tex);
             x(0xf60, InstName.Tex, ATex, InstProps.Tex);
+            x(0xf6c, InstName.Txd, ATex, InstProps.Tex);
+            x(0xf63, InstName.Tld4, ATex, InstProps.Tex);
             x(0xb66, InstName.Tld, ATex, InstProps.Tex);
             x(0xb63, InstName.Tld4, ATex, InstProps.Tex);
             x(0xb69, InstName.Tmml, ATex, InstProps.Tex);
@@ -614,9 +616,9 @@ namespace Ryujinx.Graphics.Shader.Instructions
             // before the LOD (a census of Fire Emblem Fortune's Weave's 3,327: of the sources that an LDC just wrote, always that place, with and without .SCR). Rc stays the second destination in both
             Operand boundHandle = null;
             bool handleInB = opcode == 0x361;
-            bool bindless = handleInB || opcode == 0xf60;
+            bool bindless = handleInB || opcode is 0xf60 or 0xf63 or 0xf6c;
 
-            if (opcode == 0xf60)
+            if (opcode is 0xf60 or 0xf63 or 0xf6c)
             {
                 int ur = x.Bits(40, 46);
 
@@ -625,7 +627,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
 
             if (bindless)
             {
-                opcode = 0xb60;
+                opcode = opcode is 0xf63 or 0xf6c ? opcode - 0x400 : 0xb60;
             }
 
             TexDim dim = ATexDim(context, x.Bits(61, 64));

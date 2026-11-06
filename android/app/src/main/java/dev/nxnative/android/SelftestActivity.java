@@ -34,6 +34,10 @@ public final class SelftestActivity extends Activity implements SurfaceHolder.Ca
     @Override protected void onCreate(Bundle saved) {
         super.onCreate(saved);
         Native.load(Profile.first().titleId);   // any game's host has the selftest: the APK's first game's
+        // surfaceChanged also enters Vulkan: select the driver before creating the surface.
+        java.util.List<String> driverEnv = new java.util.ArrayList<>();
+        GpuDriver.env(this, null, driverEnv);
+        Native.readiness(Readiness.driverEnv(driverEnv));
         FrameLayout root = new FrameLayout(this);
         SurfaceView surface = new SurfaceView(this);
         surface.getHolder().addCallback(this);

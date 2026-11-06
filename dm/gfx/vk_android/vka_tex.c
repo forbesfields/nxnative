@@ -64,6 +64,21 @@ static fmt_ent fmt_ent_of(int f) {
 #undef SRGB
     return (fmt_ent){VK_FORMAT_UNDEFINED, 0, 0};
 }
+// Same-width 32-bit component views for shaders with an unknown scalar class.
+// NVN's formatted surface instructions and untyped texture reads use float
+// declarations; Star Fox clears R32_UINT volumes through such a declaration.
+// Keep the integer views available too, without numeric conversion of the texels.
+static VkFormat scalar32_view(VkFormat f, int cls) {
+    VkFormat base;
+    switch (f) {
+    case VK_FORMAT_R32_UINT: case VK_FORMAT_R32_SINT: case VK_FORMAT_R32_SFLOAT: base = VK_FORMAT_R32_UINT; break;
+    case VK_FORMAT_R32G32_UINT: case VK_FORMAT_R32G32_SINT: case VK_FORMAT_R32G32_SFLOAT: base = VK_FORMAT_R32G32_UINT; break;
+    case VK_FORMAT_R32G32B32_UINT: case VK_FORMAT_R32G32B32_SINT: case VK_FORMAT_R32G32B32_SFLOAT: base = VK_FORMAT_R32G32B32_UINT; break;
+    case VK_FORMAT_R32G32B32A32_UINT: case VK_FORMAT_R32G32B32A32_SINT: case VK_FORMAT_R32G32B32A32_SFLOAT: base = VK_FORMAT_R32G32B32A32_UINT; break;
+    default: return VK_FORMAT_UNDEFINED;
+    }
+    return (VkFormat)(base + (cls == 0 ? 2 : cls == 1 ? 0 : 1));
+}
 static VkFormat srgb_twin(VkFormat f) {
     switch (f) {
     case VK_FORMAT_R8G8B8A8_UNORM: return VK_FORMAT_R8G8B8A8_SRGB; case VK_FORMAT_B8G8R8A8_UNORM: return VK_FORMAT_B8G8R8A8_SRGB;
@@ -468,7 +483,17 @@ static vka_img *img_create_(const tex_t *t, const vka_fmt *f, uint32_t base, int
     int ubwc = VKA_ENV("DM_VK_UBWC", 1);   // live: images made from now on
     VkFormat alt = f->kind == 0 && srgb_twin(f->vk) != f->vk ? srgb_twin(f->vk) : VK_FORMAT_UNDEFINED;
     VkFormat fls[6] = {f->vk, alt}; int nfl = 2;
-    if (ubwc && f->kind == 0) { pthread_mutex_lock(&g_vlmu); im->nx = vl_formats(f->vk, im->w, im->h, im->xfmt, VL_PER_IMAGE); pthread_mutex_unlock(&g_vlmu); for (int k = 0; k < im->nx; k++) fls[nfl++] = im->xfmt[k]; }   // learned view formats
+    int family32 = scalar32_view(f->vk, 0) != VK_FORMAT_UNDEFINED;
+    if (ubwc && f->kind == 0) { pthread_mutex_lock(&g_vlmu); im->nx = vl_formats(f->vk, im->w, im->h, im->xfmt, VL_PER_IMAGE - (family32 ? 2 : 0)); pthread_mutex_unlock(&g_vlmu); }
+    if (family32) for (int cls = 0; cls < 3; cls++) {
+        VkFormat alias = scalar32_view(f->vk, cls); int seen = alias == f->vk;
+        for (int k = 0; k < im->nx; k++) seen |= im->xfmt[k] == alias;
+        VkImageFormatProperties ap;
+        if (!seen && !vk.vkGetPhysicalDeviceImageFormatProperties(V.pd, alias, is3d ? VK_IMAGE_TYPE_3D : VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, u, VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT, &ap)
+            && ap.maxExtent.width >= im->w && ap.maxExtent.height >= im->h && ap.maxExtent.depth >= im->depth && ap.maxMipLevels >= im->levels
+            && ap.maxArrayLayers >= im->layers && (ap.sampleCounts & im->samples)) im->xfmt[im->nx++] = alias;
+    }
+    for (int k = 0; k < im->nx; k++) fls[nfl++] = im->xfmt[k];
     if (!alt && im->nx) fls[1] = fls[--nfl];   // (no sRGB twin: no UNDEFINED entry in the list)
     VkImageFormatListCreateInfo fli = {VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO, .viewFormatCount = (uint32_t)nfl, .pViewFormats = fls};
     VkImageCreateFlags fl = alt || im->nx || (!ubwc && f->kind == 0) ? VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT : 0;
@@ -1293,9 +1318,9 @@ VkImageView vka_view(vka_img *im, VkFormat fmt, VkImageViewType type, VkImageAsp
         if (v->f == fmt && v->t == type && v->asp == asp && v->l0 == level && v->nl == nlevels && v->a0 == layer && v->na == nlayers && !memcmp(&v->swz, swz, sizeof *swz)) {
             if (pv != &VIEWS(im)) { *pv = v->next; v->next = VIEWS(im); VIEWS(im) = v; }
             pthread_mutex_unlock(&g_tmu); return v->v; }
-    // An sRGB view of an image with storage use: the view leaves storage out (sRGB formats have no storage support)
+    // An sRGB view leaves storage out; a storage-capable scalar alias keeps it.
     VkImageViewUsageCreateInfo vu = {VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO, .usage = im->usage & ~(VkImageUsageFlags)VK_IMAGE_USAGE_STORAGE_BIT};
-    VkImageViewCreateInfo ci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .pNext = fmt != im->f.vk && (im->usage & VK_IMAGE_USAGE_STORAGE_BIT) ? &vu : NULL, .image = im->img, .viewType = type, .format = fmt, .components = *swz, .subresourceRange = {asp, level, nlevels, layer, nlayers}};
+    VkImageViewCreateInfo ci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .pNext = fmt != im->f.vk && (im->usage & VK_IMAGE_USAGE_STORAGE_BIT) && !(feats(fmt) & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) ? &vu : NULL, .image = im->img, .viewType = type, .format = fmt, .components = *swz, .subresourceRange = {asp, level, nlevels, layer, nlayers}};
     VkImageView view = VK_NULL_HANDLE; VkResult r = vk.vkCreateImageView(V.dev, &ci, NULL, &view);
     if (r) { static _Atomic int n; if (atomic_fetch_add(&n, 1) < 8) VRED("image view of serial %llu format %d type %d levels %u+%u layers %u+%u: %d", (unsigned long long)im->serial, fmt, type, level, nlevels, layer, nlayers, r); }
     else { view_ent *v = malloc(sizeof *v); *v = (view_ent){VIEWS(im), view, fmt, type, asp, level, nlevels, layer, nlayers, *swz}; VIEWS(im) = v; }
@@ -1626,7 +1651,7 @@ static VkComponentSwizzle swz1(int n) { return n >= 0 && n <= 5 ? (VkComponentSw
 // spread into white blotches and black speckles over the whole level)
 static vka_img *g_fb_im[9]; static uint32_t g_fb_lv[9]; static int g_nfb;
 void vka_tex_feedback(vka_img *const *ims, const uint32_t *levels, int n) { g_nfb = n > 9 ? 9 : n; for (int i = 0; i < g_nfb; i++) { g_fb_im[i] = ims[i]; g_fb_lv[i] = levels[i]; } }
-static VkImageView view_of(const treg_ent *e, vka_img *im, int vt_want, int storage) {
+static VkImageView view_of(const treg_ent *e, vka_img *im, int vt_want, int storage, VkFormat fmt_override) {
     vka_fmt f; const view_t *v = e->has_v ? &e->v : NULL;
     if (!vka_fmt_of(v && v->set_format ? v->format : e->t.d.format, &f)) f = im->f;
     uint32_t tl = im->base + im->levels, l0 = v && v->set_levels ? v->base_level : 0, nl = v && v->set_levels && v->nlevels ? v->nlevels : tl > l0 ? tl - l0 : 1;
@@ -1656,7 +1681,7 @@ static VkImageView view_of(const treg_ent *e, vka_img *im, int vt_want, int stor
     } else if (vt == VK_IMAGE_VIEW_TYPE_1D || vt == VK_IMAGE_VIEW_TYPE_2D) na = 1;
     else if (vt == VK_IMAGE_VIEW_TYPE_3D) { a0 = 0; na = 1; }
     VkImageAspectFlags asp = im->aspect == VK_IMAGE_ASPECT_COLOR_BIT ? VK_IMAGE_ASPECT_COLOR_BIT : e->t.stencil || (v && v->set_dsmode && v->dsmode) ? VK_IMAGE_ASPECT_STENCIL_BIT : im->aspect & VK_IMAGE_ASPECT_DEPTH_BIT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_STENCIL_BIT;
-    return vka_view(im, e->img || storage ? f.vk : f.view, vt, asp, l0, nl, a0, na, storage ? NULL : &m);
+    return vka_view(im, fmt_override ? fmt_override : e->img || storage ? f.vk : f.view, vt, asp, l0, nl, a0, na, storage ? NULL : &m);
 }
 
 // DM_VK_IMG_UPGRADE=0: no image intent from a binding: made and kept without storage use, the binding reads as unbound (as before); live
@@ -1718,7 +1743,7 @@ static void write_tex(int id, VkCommandBuffer cb, VkWriteDescriptorSet *w, VkDes
     // (img_storage_upgrade runs without nvn_pool_use: it copies image to image and never reads the storage)
     if (im && e->img && im->m.z) { pthread_mutex_lock(&g_tmu); img_own(im, cb); pthread_mutex_unlock(&g_tmu); }   // (shaders write it: memory of its own first)
     if (im && e->img && !(im->usage & VK_IMAGE_USAGE_STORAGE_BIT)) { pthread_mutex_lock(&g_tmu); img_storage_upgrade(im, cb); pthread_mutex_unlock(&g_tmu); }
-    VkImageView view = im ? view_of(e, im, -1, 0) : VK_NULL_HANDLE;
+    VkImageView view = im ? view_of(e, im, -1, 0, VK_FORMAT_UNDEFINED) : VK_NULL_HANDLE;
     if (!view) view = g_null_view;
     pthread_mutex_lock(&g_tmu);
     if (im && e->img) { pthread_mutex_unlock(&g_tmu); vka_img_written(im); pthread_mutex_lock(&g_tmu); }   // an image registration: shaders write it (vka_tex_id_view)
@@ -1804,10 +1829,20 @@ static VkImageView id_view(int id, VkCommandBuffer cb, uint8_t dim, int storage,
     if (storage) vka_img_written(im);
     if (!storage && !(im->usage & VK_IMAGE_USAGE_SAMPLED_BIT)) return VK_NULL_HANDLE;
     // The sampled type must be the image format's class (float / sint / uint): another class is undefined in Vulkan
-    int want = dim & DMSH_VK_DIM_SINT ? 2 : dim & DMSH_VK_DIM_UINT ? 1 : 0, have = im->f.kind == 1 ? 1 : im->f.kind == 2 ? 2 : 0;
-    if (want != have && !(im->f.kind >= 3 && want == 0)) return VK_NULL_HANDLE;
+    vka_fmt effective;
+    if (!vka_fmt_of(e.has_v && e.v.set_format ? e.v.format : e.t.d.format, &effective)) effective = im->f;
+    int want = dim & DMSH_VK_DIM_SINT ? 2 : dim & DMSH_VK_DIM_UINT ? 1 : 0, have = effective.kind == 1 ? 1 : effective.kind == 2 ? 2 : 0;
+    VkFormat alias = VK_FORMAT_UNDEFINED;
+    if (want != have && !(effective.kind >= 3 && want == 0)) {
+        alias = scalar32_view(effective.vk, want);
+        if (!alias || !(feats(alias) & (storage ? VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT : VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT))) return VK_NULL_HANDLE;
+        int listed = im->any_fmt || alias == im->f.vk || alias == im->alt;
+        for (int k = 0; k < im->nx; k++) listed |= alias == im->xfmt[k];
+        if (!listed) return VK_NULL_HANDLE;
+        static _Atomic int once; if (!atomic_exchange(&once, 1)) VLOG("scalar texture view: VkFormat %d viewed as %d%s", effective.vk, alias, storage ? " (storage)" : "");
+    }
     if (imo) *imo = im;
-    return view_of(&e, im, vt, storage);
+    return view_of(&e, im, vt, storage, alias);
 }
 vka_img *vka_tex_id_img(int id, VkCommandBuffer cb) {   // the image of texture ID id (DM_VK_NANSCAN), NULL = none
     pthread_mutex_lock(&g_tmu);
