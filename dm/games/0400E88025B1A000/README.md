@@ -49,8 +49,9 @@ On an M5 Pro with 24 GB, macOS 27.0, handheld mode and Resolution 100% give 1920
 
 ## Experimental Mac test modes
 
-The optional selector in `mac_test_launcher.m` offers **1080p — Uncapped**,
-**4K — Uncapped**, and **1080p — 120 fps** in one existing test app. All modes use
+The optional selector in `mac_test_launcher.m` has two independent dropdowns:
+**Resolution: 1080p / 4K** and **Frame rate: 60 fps / 120 fps / Unlocked**.
+All six combinations are available in one existing test app. All modes use
 one RomFS, shader set and save folder. `scripts/configure_starfox_test.py` updates
 only that app's executables and rewritten main, backing up changed files only.
 It deliberately accepts the isolated `org.nxnative.starfox.120hz-test` bundle,
@@ -58,7 +59,7 @@ not the normal app.
 
 The build-gated output stubs use state +0xa4: -1 (unset) runs the original game
 paths, 0 selects its zero desired-frame-time path and current-clock update,
-and 120 selects its positive 1/120-second interval. The uncapped path bypasses
+and 60 or 120 selects its positive 1/60- or 1/120-second interval. The uncapped path bypasses
 both output-stage waits; it does not remove a simulation-thread sleep or scale
 the game clock. The two refresh fallbacks use 120 only during the experiment;
 correct SDK VI refresh/capability service semantics remain open.
@@ -104,7 +105,7 @@ movement speed, physics, audio/movie sync or later-level stability.
 
 ## Open
 
-- Native 120 Hz: the host has no takeover for `nn::vi::QueryDisplayCurrentRefreshRate` or `SetDisplay120HzRefreshRateCapability`. SDK 21 rejects the host's display handle, and the game's refresh queries keep their prefilled 60 Hz answer. Exposing 120 Hz still needs correct display semantics and simulation, audio, movie and input checks. No frame-rate unlock is enabled in this fork.
+- Native 120 Hz: the host has no takeover for `nn::vi::QueryDisplayCurrentRefreshRate` or `SetDisplay120HzRefreshRateCapability`. SDK 21 rejects the host's display handle, and the game's refresh queries keep their prefilled 60 Hz answer by default. The optional test selector uses build-gated refresh fallbacks and output timing stubs; correct SDK display semantics and later-level checks remain open.
 
 - [The picture](#the-picture): 768x432 docked until #1304 and #1305 are in; the Resolution setting raises the scene above the game's own scale.
 - `[RED] DLSS: the game's bias mask (a reactive mask for MetalFX) is not passed on`.

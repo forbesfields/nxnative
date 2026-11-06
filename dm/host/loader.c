@@ -319,12 +319,13 @@ void dm_fps_state_apply(void) {
     if (qs && *qs) { char *end; q = strtof(qs, &end); if (end == qs || *end || !(q == 0 || (q >= 0.25f && q <= 1.0f))) { LOG("[RED] DM_RESOLUTION_SCALE=%s: must be 0 or 0.25 to 1.0; keeping the game's scale", qs); q = 0; }
                      else if (q > 0) LOG("%s: scene rendered at %.2f of the target (DM_RESOLUTION_SCALE; only builds with that stub follow it)", g_fps_mod, q); }
     memcpy(dm_fps_state + 0xa0, &q, sizeof q);
-    // The Star Fox experiment's native output timer: -1 keeps the game, 0 is uncapped, 120 selects its positive desired-frame-time path.
+    // The Star Fox experiment's native output timer: -1 keeps the game, 0 is uncapped, 60/120 select its positive desired-frame-time path.
     if (g_fps_build && !strcmp(g_fps_build, "a7730d0f74d168d90422354c8317f76f")) {
         const char *hz = getenv("DM_STARFOX_RENDER_HZ"); int32_t rate = -1;
         if (hz && !strcmp(hz, "0")) rate = 0;
+        else if (hz && !strcmp(hz, "60")) rate = 60;
         else if (hz && !strcmp(hz, "120")) rate = 120;
-        else if (hz) LOG("[RED] DM_STARFOX_RENDER_HZ must be 0 or 120; keeping the game's output timing");
+        else if (hz) LOG("[RED] DM_STARFOX_RENDER_HZ must be 0, 60 or 120; keeping the game's output timing");
         memcpy(dm_fps_state + 0xa4, &rate, sizeof rate);
         LOG("main: Star Fox output timer %d Hz (-1 = game's own, 0 = uncapped)", rate);
     }
