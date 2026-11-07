@@ -63,6 +63,19 @@ class ControlWordsAreNoEntry(unittest.TestCase):
         self.assertEqual([w for w, *_ in got], ['drive.sharcb#BAHS@0x58', 'drive.sharcb#BAHS@0x1d8'])
         self.assertEqual([st for _, st, _, _ in got], ['vs', 'cs'])
 
+    def test_pairing_survives_filtered_trailing_metadata(self):
+        d = bytearray(bahs_trailing_metadata())
+        struct.pack_into('<I', d, 0x1cc, 1)   # second binary is a fragment shader
+        d[0x256] = 0                         # stage comes from its graphics SPH
+        struct.pack_into('<I', d, 0x700, 0x000c1482)
+        struct.pack_into('<II', d, 0x348, 24, 1)   # one program after the binary array
+        struct.pack_into('<IIII', d, 0x350, 16, 0, 0x11, 0)
+        got = ss.bahs_shaders(d, 'paired.sharcb')
+        self.assertEqual([st for _, st, _, _ in got], ['vs', 'ps'])
+        self.assertEqual([ss.BAHS_VAR[w] for w, *_ in got], ['paired.sharcb#BAHS#prog0#var0'] * 2)
+        self.assertNotIn('paired.sharcb#BAHS@0x17c', ss.BAHS_VAR)
+        self.assertEqual(ss.var_pairs(got), {(ss.skey(got[0][2], got[0][3]), ss.skey(got[1][2], got[1][3]), 'prog')})
+
     def test_unknown_array_keeps_scan_fallback(self):
         d = bytearray(bahs_trailing_metadata())
         struct.pack_into('<I', d, 0x40, 0)   # another layout: no valid binary array

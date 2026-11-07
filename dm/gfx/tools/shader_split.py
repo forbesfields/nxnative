@@ -264,7 +264,7 @@ def bahs_variations(d, label, entries):
     (0 vertex, 1 fragment, 3 compute), two u32, the 16-byte entry bahs_shaders reads) and right after it a program array (u32 byte size, u32 count, then per program: u32 record size,
     u32 name length, u32 stage mask, u32 index of its first binary, its name, its macros). A program's binaries run from its first index to the next program's; the n-th vertex binary
     and the n-th fragment binary in that range are one variation. Breath of the Wild: 109 of the 543 pairs drawn on a cold start in Zora's Domain came from these files, and none was in
-    shader_pairs.tsv, which paired only BNSH variations. A file whose arrays do not read back (another layout, or an entry bahs_shaders took that no record holds) gives no pairs"""
+    shader_pairs.tsv, which paired only BNSH variations. A file whose arrays do not validate gives no pairs; validated binary arrays exclude stray scan matches before pairing"""
     array = bahs_binary_array(d, entries)
     if not array: return
     o, recs = array; acnt = len(recs)
