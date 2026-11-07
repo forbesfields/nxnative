@@ -66,7 +66,9 @@ int main(int argc, char **argv) {
         BOOL hud = ![display isEqualToString:@"off"];
         setenv("DM_METAL_HUD", hud ? "1" : "0", 1);
         setenv("MTL_HUD_ENABLED", hud ? "1" : "0", 1);
-        setenv("MTL_HUD_ELEMENTS", [display isEqualToString:@"fps"] ? "fps" : "Full", 1);
+        // This macOS HUD accepts metric names but rejects the documented "Full" preset.
+        setenv("MTL_HUD_ELEMENTS", [display isEqualToString:@"fps"] ? "fps" :
+               "device,layersize,memory,thermal,fps,gputime,frameinterval,frameintervalgraph,framenumber,metalcpu,shaders", 1);
         NSString *core = [NSBundle.mainBundle.executablePath.stringByDeletingLastPathComponent stringByAppendingPathComponent:@"nxnative-core"];
         execl(core.fileSystemRepresentation, core.fileSystemRepresentation, "--no-launcher", NULL);
         perror("Starting Star Fox"); return 1;

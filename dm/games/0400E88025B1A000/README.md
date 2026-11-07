@@ -53,7 +53,10 @@ The optional selector in `mac_test_launcher.m` has three independent dropdowns:
 **Resolution: 1080p / 4K**, **Frame rate: 60 fps / 120 fps / Unlocked**, and
 **Debug display: Off / Compact FPS / Full debug**. Debug display defaults to Off.
 Play saves all three choices; Cancel leaves the saved choices unchanged. Compact
-FPS uses Metal's `MTL_HUD_ELEMENTS=fps`; Full debug uses its `Full` preset. The
+FPS uses Metal's `MTL_HUD_ELEMENTS=fps`; Full debug lists the device, resolution,
+memory, thermal state, frame rate, GPU/frame timing, frame graph, frame number,
+CPU encoding and shader metrics. Explicit metric names avoid macOS 27.0's
+`Unknown extra element name: full` error for the documented `Full` preset. The
 selector explicitly sets `DM_METAL_HUD` and `MTL_HUD_ENABLED`, so Off also overrides
 an inherited HUD enable switch. All six resolution/frame-rate combinations are
 available with each debug display. All modes use
