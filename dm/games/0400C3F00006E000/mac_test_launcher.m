@@ -12,7 +12,8 @@ int main(int argc, char **argv) {
         NSString *rate = [prefs stringForKey:@"test.frameRate"] ?: @"60";
         NSString *display = [prefs stringForKey:@"test.debugDisplay"] ?: @"off";
         if (![resolutions containsObject:resolution]) resolution = @"1080p";
-        if (![rates containsObject:rate]) rate = @"60";
+        // Older selectors saved rates that accelerate this game's fixed 60 Hz step.
+        if (![rate isEqualToString:@"60"]) rate = @"60";
         if (![displays containsObject:display]) display = @"off";
         BOOL show = YES;
         for (int i = 1; i < argc; i++) {
@@ -21,13 +22,16 @@ int main(int argc, char **argv) {
                 if (parts.count != 2 || ![resolutions containsObject:parts[0]] || ![rates containsObject:parts[1]]) {
                     fprintf(stderr, "Unknown Mario Kart World test mode\n"); return 2;
                 }
+                if (![parts[1] isEqualToString:@"60"]) {
+                    fprintf(stderr, "Mario Kart World requires 60 fps for normal game speed; 120 fps and Unlocked are unavailable until a simulation timing patch is verified.\n"); return 2;
+                }
                 resolution = parts[0]; rate = parts[1]; show = NO;
             } else if (!strcmp(argv[i], "--debug-display") && i + 1 < argc) {
                 display = @(argv[++i]);
                 if (![displays containsObject:display]) { fprintf(stderr, "Unknown debug display\n"); return 2; }
             } else if (!strcmp(argv[i], "--no-launcher")) show = NO;
             else {
-                fprintf(stderr, "usage: nxnative [--mode <1080p|4k>-<60|120|uncapped>] [--debug-display <off|fps|full>] [--no-launcher]\n"); return 2;
+                fprintf(stderr, "usage: nxnative [--mode <1080p|4k>-60] [--debug-display <off|fps|full>] [--no-launcher]\n"); return 2;
             }
         }
         if (show) {
@@ -36,7 +40,7 @@ int main(int argc, char **argv) {
             [NSApp finishLaunching];
             NSAlert *alert = [NSAlert new];
             alert.messageText = @"Mario Kart World settings";
-            alert.informativeText = @"Choose the output resolution and frame rate. 120 fps and Unlocked are experimental; game speed must be checked.";
+            alert.informativeText = @"Choose the output resolution and debug display. Mario Kart World runs at normal speed at 60 fps. Higher frame rates are unavailable because they speed up the game.";
             [alert addButtonWithTitle:@"Play"]; [alert addButtonWithTitle:@"Cancel"];
             NSView *controls = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 124)];
             NSTextField *resLabel = [NSTextField labelWithString:@"Resolution"];
@@ -49,8 +53,11 @@ int main(int argc, char **argv) {
             NSTextField *fpsLabel = [NSTextField labelWithString:@"Frame rate"];
             fpsLabel.frame = NSMakeRect(0, 52, 120, 22); [controls addSubview:fpsLabel];
             NSPopUpButton *fps = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(130, 48, 190, 32) pullsDown:NO];
-            [fps addItemsWithTitles:@[@"60 fps", @"120 fps (experimental)", @"Unlocked (experimental)"]];
-            [fps selectItemAtIndex:[rates indexOfObject:rate]];
+            [fps addItemsWithTitles:@[@"60 fps", @"120 fps (unavailable)", @"Unlocked (unavailable)"]];
+            fps.menu.autoenablesItems = NO;
+            [fps itemAtIndex:1].enabled = NO;
+            [fps itemAtIndex:2].enabled = NO;
+            [fps selectItemAtIndex:0];
             fps.accessibilityLabel = @"Frame rate"; [controls addSubview:fps];
             NSTextField *debugLabel = [NSTextField labelWithString:@"Debug display"];
             debugLabel.frame = NSMakeRect(0, 12, 120, 22); [controls addSubview:debugLabel];
@@ -67,11 +74,12 @@ int main(int argc, char **argv) {
             [prefs synchronize];
             [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
         }
-        BOOL fourK = [resolution isEqualToString:@"4k"], uncapped = [rate isEqualToString:@"uncapped"];
-        // These are host pacing requests. No Star Fox timing stub applies to this game.
-        setenv("DM_PRESENT_HZ", uncapped ? "0" : rate.UTF8String, 1);
+        BOOL fourK = [resolution isEqualToString:@"4k"];
+        // The game advances at least one 1/60 s step per frame. Faster presents
+        // accelerate its simulation; keep 60 until a complete timing patch exists.
+        setenv("DM_PRESENT_HZ", "60", 1);
         setenv("DM_PRESENT_LINK", "0", 1);
-        setenv("DM_PRESENT_VSYNC", [rate isEqualToString:@"60"] ? "1" : "0", 1);
+        setenv("DM_PRESENT_VSYNC", "1", 1);
         setenv("DM_PRESENT_INTERVAL", "game", 1);
         setenv("DM_VI_BUFFER_MAX", fourK ? "3" : "1", 1);
         setenv("DM_OPMODE", fourK ? "1" : "0", 1);
