@@ -64,7 +64,10 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 
 - **How it is stored:** agl `sharcb`, the engine utility shaders: code region at header +0x1c (size +0x18). Binary entries in the table area are 16 bytes `{code offset, 0, control size (0x880/0x88c; 0x848 in BAHS version 9, Super Mario 3D World), signed offset from this entry to the control section}`.
 - **Pairing:** control sections are shared between programs, so pair by entry, never by searching for code near a control.
-- **Found on:** [Super Mario 3D World + Bowser's Fury](../../dm/games/010028600EBDA000/README.md) (BAHS version 9).
+- **Symptom:** a spurious compute shader fails on `Ampere instruction 481 at 0x0`; the bytes are a graphics SPH rather than a compute instruction.
+- **Cause:** scanning every aligned word also reads control fields and trailing record metadata as binary entries, pairing an unrelated compute control section with graphics code.
+- **Fix:** reject candidates inside control headers. When the binary array's sizes, count and record boundaries validate, accept only its records. Retain the scan fallback for other layouts.
+- **Found on:** [Super Mario 3D World + Bowser's Fury](../../dm/games/010028600EBDA000/README.md) (BAHS version 9); [Mario Kart World 1.8.0](../../dm/games/0400C3F00006E000/README.md#180) (three false NVN2 entries).
 
 ### Zstd files recognised by their magic
 

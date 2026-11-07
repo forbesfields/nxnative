@@ -285,7 +285,6 @@ DM_REC	diagnostic	`=<file>`: writes player 1's physical input (keyboard, mouse t
 DM_REGIONS	diagnostic	`=<file>` writes the table of the SDK's address regions every 2 s (alias offset, size, where the request returns to in the game, bytes mapped, the part opened, the SDK offset the request came through; `hle_svc.c` "Address regions"); the NSP script's address region check sets it
 DM_RENDER_SCALE	player	`0.5` to `1.0`: fixes the game's 3D views at that fraction of their size and turns its dynamic resolution off, for builds with a render scale stub; `1.0` (the default) keeps it
 DM_RESOLUTION_SCALE	player	`0.25` to `1.0`: the share of the target Star Fox renders its scene at, in place of its settings' scale (0.5 docked, 0.83 handheld); `0` or unset keeps the game's own; only on the builds whose patches.py names the RESOLUTION_SCALE capability. The launcher's Resolution
-DM_STARFOX_RENDER_HZ	diagnostic	Star Fox main a7730d0f: `0` uses the native zero desired-frame-time and current-clock paths, skipping output pacing; `60` or `120` requests 1/60 or 1/120 second. Unset keeps original game behavior. Experimental; campaign correctness is not established
 DM_RESOURCE_AOC	path	The add-on content folder the iOS build copies into the app's `aoc/` (empty for none); written by `gen_resources.py`, read by `stage_resources.sh`
 DM_RESOURCE_BUILD	switch	Package version (for example `v327680`), written to `Gen/resources.env` by `gen_resources.py`; with `DM_COPY_ROMFS=NO` the copy phase puts it in the `build=` field of the app's `romfs.id`
 DM_RESOURCE_CHAIN_H	path	Path of `dm/gfx/nvn/dmsh_chain.h`, written to `Gen/resources.env` by `build_ipa.sh`; the Xcode copy phase (`stage_resources.sh`) stops when the prepared shaders are not of its chain version
@@ -326,6 +325,7 @@ DM_SLOWFRAME	diagnostic	`=1` writes the per-frame timing breakdown to the log on
 DM_SPIN	switch	`0` makes the rewriter's spin gate return at once, so guest poll loops spin with no sleep; the gate stays (on by default)
 DM_SPIN_LIST	diagnostic	`=1` makes `patch_nso.py` print every guest poll loop it found and sends through a spin gate
 DM_SPIN_POLL	switch	`=<µs>`: how long a spin-gate wait polls before it sleeps with the yield back-off (default 2000; `0` yields on every pass)
+DM_STARFOX_RENDER_HZ	diagnostic	Star Fox main a7730d0f: `0` uses the native zero desired-frame-time and current-clock paths, skipping output pacing; `60` or `120` requests 1/60 or 1/120 second. Unset keeps original game behavior. Experimental; campaign correctness is not established
 DM_SVC	diagnostic	`=1` logs memory SVCs (`SetHeapSize`, `MapMemory`, `Map`/`UnmapPhysicalMemory`) with their addresses and sizes
 DM_SYMCHECK	diagnostic	`=1` checks every hashed module symbol lookup against a linear search and logs a red line for each mismatch
 DM_TBUF_ALIGN	diagnostic	`=<bytes>` uses that value as the linear-texture alignment for buffer textures when it is larger than the device's `minimumLinearTextureAlignmentForPixelFormat`: a Mac can then reproduce a phone's larger alignment (a 64-byte one fails the buffers a device with 64 bytes cannot view), to check `tbuf_as_2d`'s aligned-row copy
@@ -359,6 +359,7 @@ DM_UDC_SELFTEST	diagnostic	`=1` runs a start-up check of DontCare load and store
 DM_UE_SHADERS	path	Folder of the Unreal shader code archives decoded by `uepak.py`, for `shader_split.py` (default `ue_shaders` beside the RomFS); needed when the RomFS has Unreal paks
 DM_UE_TEXTURE_POOL	switch	Megabytes Unreal's texture streaming pool (`r.Streaming.PoolSize`) is raised to, overriding the profile's `ue_texture_pool`; `0` keeps the game's own pool. On iOS only this switch turns it on (`Documents/env.txt`)
 DM_UPSCALER	player	`metalfx` draws the game's own upscaler shaders (agl's NDSR network, found by the shader map) with MetalFX's spatial scaler; `game` (the default) runs them
+DM_VI_BUFFER_MAX	diagnostic	Override the VI buffer maximum and largest layer for supersampling: 0=720p, 1=1080p, 2=1440p, 3=4K; unset or invalid uses the display. Internal render resolution must be checked separately
 DM_VK_CAPTURE	path	`=<dir>` (Mac) writes every SPIR-V module the game creates to `<dir>/<key>.spv`; the NSP script's Vulkan shader capture stage sets it
 DM_VK_LOG	diagnostic	`=1` logs Vulkan object creation in the Vulkan-on-Metal layer
 DM_VSYNC_HZ	switch	`=<Hz>`: rate at which a host thread fires the vi vsync event when the display link does not drive it (default 60)
@@ -372,4 +373,3 @@ DM_XCODE_DERIVED_DATA	path	Xcode derived data folder for `build_ipa.sh` (default
 DM_XCODE_PROJECT_DIR	path	Folder of the per-game Xcode project that `build_ipa.sh --prepare-xcode` makes (default `$W/xcode`); the NSP script sets it
 DM_XV_FILE	path	File where the attachment validity ledger keeps the keys it disabled after a violation, read at the next launch
 DM_YIELD_BACKOFF	switch	`0` turns off the yield back-off; `=<cap µs>[:<start µs>]` sets its sleep cap and the run of yields after which it starts (default 250:2000)
-DM_VI_BUFFER_MAX	diagnostic	Override the VI buffer maximum and largest layer for supersampling: 0=720p, 1=1080p, 2=1440p, 3=4K; unset or invalid uses the display. Internal render resolution must be checked separately
