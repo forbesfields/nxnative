@@ -103,7 +103,8 @@ static int init_once(void) {
     if (x_ph) dext[ndext++] = "VK_QCOM_queue_perf_hint";
     free(de);
 
-    // Every feature the device has, but robustness and capture-replay (they cost and nothing needs them); the shader side takes what it needs from the same device
+    // Every supported feature except capture-replay. Robust access can be enabled
+    // for bring-up: guest shaders may access an unbound or short buffer.
     VkPhysicalDeviceMapMemoryPlacedFeaturesEXT fmp = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAP_MEMORY_PLACED_FEATURES_EXT};
     VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT fvin = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT};
     VkPhysicalDeviceRobustness2FeaturesKHR frob = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_KHR};
@@ -121,9 +122,12 @@ static int init_once(void) {
     VkPhysicalDeviceVulkan11Features f11 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES, .pNext = &f12};
     VkPhysicalDeviceFeatures2 f2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, .pNext = &f11};
     vk.vkGetPhysicalDeviceFeatures2(V.pd, &f2);
-    f2.features.robustBufferAccess = VK_FALSE; f13.robustImageAccess = VK_FALSE;
+    int robust = VKA_ENV("DM_VK_ROBUST", 0) != 0;
+    if (!robust) { f2.features.robustBufferAccess = VK_FALSE; f13.robustImageAccess = VK_FALSE; }
     f12.bufferDeviceAddressCaptureReplay = VK_FALSE; f12.bufferDeviceAddressMultiDevice = VK_FALSE;
-    frob.robustBufferAccess2 = VK_FALSE; frob.robustImageAccess2 = VK_FALSE;   // only nullDescriptor: unbound slots read a null descriptor
+    if (!robust) { frob.robustBufferAccess2 = VK_FALSE; frob.robustImageAccess2 = VK_FALSE; }
+    if (!f2.features.robustBufferAccess) frob.robustBufferAccess2 = VK_FALSE;
+    VLOG("robust access: buffer %u, buffer2 %u, image %u, image2 %u (DM_VK_ROBUST=%d)", f2.features.robustBufferAccess, frob.robustBufferAccess2, f13.robustImageAccess, frob.robustImageAccess2, robust);
     // Mesh shading: the task and mesh stages only (multiview, shading-rate and query support each need more of the device than the replay enables or uses)
     fmesh.multiviewMeshShader = VK_FALSE; fmesh.primitiveFragmentShadingRateMeshShader = VK_FALSE; fmesh.meshShaderQueries = VK_FALSE;
     if (x_mesh && !fmesh.meshShader) fmesh.taskShader = VK_FALSE;   // (task shading is of no use without mesh shading)

@@ -626,6 +626,19 @@ for o in (o for s, e in CODE_RANGES for o in range(s, e, 4)):
         elif t == 0x54: d = (((w >> 5) & 0x7FFFF) - (1 << 19)) * 4 if w & 0x800000 and not w & 0x10 else 4
         else: d = (((w >> 5) & 0x7FFFF) - (1 << 19)) * 4 if w & 0x800000 else 4
         if -SPIN_WIN <= d <= 0: spin_cand.setdefault(o + d, []).append(o)
+    if TARGET == 'android':
+        # Armv8 phones lack PAuth. Strip compiler signing/authentication together;
+        # SDK context guards keep their comparisons and use a process-keyed MAC.
+        if w in (0xd503233f, 0xd503237f, 0xd50323bf, 0xd50323ff, 0xd503219f, 0xd50321df, 0xd50320ff) or w & 0xfffffc00 in (0xdac10000, 0xdac10400, 0xdac11400) or w & 0xffffffe0 == 0xdac143e0:
+            struct.pack_into('<I', IMG, o, NOP); stat('pauth_strip'); continue
+        if w in (0xd65f0bff, 0xd65f0fff):
+            struct.pack_into('<I', IMG, o, 0xd65f03c0); stat('pauth_return'); continue
+        if w & 0xffe0fc00 == 0x9ac03000:
+            rd, rn, rm = w & 31, (w >> 5) & 31, (w >> 16) & 31
+            if 18 in (rd, rn, rm): sys.exit(f'[RED] PACGA at {o:#x} uses virtualized x18: unsupported')
+            kinds[o] = ('pacga', rd | rn << 5 | rm << 10); continue
+        if w & 0xffff0000 == 0xdac10000 or w & 0xff200400 == 0xf8200400 or w & 0xfefff800 in (0xd61f0800, 0xd63f0800):
+            sys.exit(f'[RED] unhandled pointer-authentication instruction {w:08x} at {o:#x}')
     if w & 0xFFE0001F == 0xD4000001: kinds[o] = ('svc', (w >> 5) & 0xFFFF); continue
     if w & 0xFFFFFFE0 == 0xD53BD040: kinds[o] = ('tpidr_r', None); continue
     if w & 0xFFFFFFE0 == 0xD51BD040: kinds[o] = ('tpidr_w', None); continue
@@ -1258,7 +1271,7 @@ for a in sorted(kinds):
     elif k == 'tpidrro_r': st = site_sysreg_read(ins, 'KTLR'); stat(k)
     elif k == 'tpidr_w': st = site_tpidr_write(ins); stat(k)
     elif k == 'svc': st = site_gate(ins, 'svc', arg); stat(k)
-    elif k in ('cntpct', 'cntvct'): st = site_gate(ins, k, arg); stat(k)
+    elif k in ('cntpct', 'cntvct', 'pacga'): st = site_gate(ins, k, arg); stat(k)
     elif k == 'sp_align': st = site_sp_align(ins, arg); stat(k)
     elif k == 'ctr':   # replaced in place by a constant: DminLine = 4 (64-byte lines); movz xN, #4, lsl #16
         assert arg != 18, f'{a:x} mrs x18, ctr_el0'
@@ -1360,7 +1373,7 @@ if BUILD_ID in FRAME_STEP and NAME == 'main':
         for i, w in enumerate(words): struct.pack_into('<I', IMG, off + 4 * i, w)
         cuts.append((off, old.hex(), bytes(IMG[off:off + 4 * len(words)]).hex(), why)); stat('frame_step')
 if FS_STATE_OFF:   # the build's stubs (FRAME_STEP of its patches.py)
-    use_area(0); fs = types.SimpleNamespace(here=here, emit=emit, site=fs_site, put=fs_put, state=FS_STATE_OFF, render_scale=0)
+    use_area(0); fs = types.SimpleNamespace(here=here, emit=emit, area=use_area, site=fs_site, put=fs_put, state=FS_STATE_OFF, render_scale=0)
     FRAME_STEP[BUILD_ID](fs); RENDER_SCALE = fs.render_scale
 
 # ---- Spin waits (every module) ----

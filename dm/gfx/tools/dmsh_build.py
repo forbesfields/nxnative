@@ -507,9 +507,9 @@ def job_for(key, name, rec, w):
         code = code[:dmsh_ampere.inst_len(rec[ci:])]
         extra['arch'] = 'sm86'
         # compute lays out its driver constants in c[0] per shader: the control section gives its push constants' words (+0xa9), counts its uniform buffer, storage
-        # buffer and texture entries (+0xb1, +0xb2, +0xb3) and gives the size (+0xba); the translator maps them to c[24] and NVN's fixed tables (InstEmitAmpere.cs
-        # AMapC0). Graphics keeps NVN's tables
-        if stage == 'cs': extra['nvn2_cs'] = [rec[ci + 0xb1], rec[ci + 0xb2], rec[ci + 0xb3], struct.unpack_from('<H', rec, ci + 0xba)[0], rec[ci + 0xa9] * 4]
+        # buffer, texture, separate texture and separate sampler entries (+0xb1, +0xb2, +0xb3, +0xb4, +0xb5; images, +0xb6, come last) and gives the size (+0xba);
+        # the translator maps them to c[24] and NVN's fixed tables (InstEmitAmpere.cs AMapC0). Graphics keeps NVN's tables
+        if stage == 'cs': extra['nvn2_cs'] = [rec[ci + 0xb1], rec[ci + 0xb2], rec[ci + 0xb3], struct.unpack_from('<H', rec, ci + 0xba)[0], rec[ci + 0xa9] * 4, rec[ci + 0xb4], rec[ci + 0xb5]]
     else:
         c1o, c1t = struct.unpack_from('<2I', rec, ci + 0x700)   # control segment +0x700: c1 relative to the start of the instruction area, +0x704: total length of the instruction area (c1 = what lies between the two; lengths across the whole library are 0 / 256 / 512 / 768)
         c1 = rec[0x38 + c1o:0x38 + c1t]

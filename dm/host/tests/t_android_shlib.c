@@ -208,7 +208,15 @@ static void test_walk(void) {
 }
 
 // ---------- The real library ----------
-static int rd_zero(void *ctx, uint64_t a, void *out, size_t n) { (void)ctx; (void)a; memset(out, 0, n); return 1; }
+// The all-bound walk includes handles and pointers stored in uniform buffers.
+// Zero-filled pointees made a valid SBUF_UBO binding appear unbound even though
+// this check promises that every resource is supplied.
+static int rd_bound(void *ctx, uint64_t a, void *out, size_t n) {
+    (void)ctx; (void)a;
+    if (n == 8) { uint64_t ptr = 0xa0000000; memcpy(out, &ptr, n); return 1; }
+    if (n == 4) { uint32_t handle = 1 | 1u << 20; memcpy(out, &handle, n); return 1; }
+    return 0;
+}
 static void test_real(void) {
     const char *p = getenv("DM_VK_SHLIB");
     if (!p || access(p, R_OK)) { printf("t_android_shlib: no real library (DM_VK_SHLIB=%s): skipped\n", p ? p : "unset"); return; }
@@ -231,7 +239,7 @@ static void test_real(void) {
         CHECK(vka_shlib_find(&L, e->key) == e, "lookup of entry %u", i);
         int nvn = vka_nvn_stage(e->stage);
         char why[200] = ""; int pool = 0;
-        int k = vka_walk(&s, nvn, e, vka_shlib_binds(&L, e), L.h->ssbo_align, 64, rd_zero, NULL, res, 4096, &pool, why, sizeof why);
+        int k = vka_walk(&s, nvn, e, vka_shlib_binds(&L, e), L.h->ssbo_align, 64, rd_bound, NULL, res, 4096, &pool, why, sizeof why);
         if (k < 0) { refused++; if (refused < 4) printf("  %016llx refused: %s\n", (unsigned long long)e->key, why); continue; }
         CHECK(nvn >= 0, "%016llx: stage %u", (unsigned long long)e->key, e->stage);
         if (nvn < 0) continue;

@@ -31,7 +31,7 @@ static void *selftest_main(void *arg);
 void nxhost_set_window(ANativeWindow *w) {
     static int first = 1;
     if (w) ANativeWindow_acquire(w);
-    vka_init();
+    // The surface can arrive before the launcher sets the driver. Rendering initializes Vulkan.
     pthread_mutex_lock(&g_pmu);
     if (g_win_new) ANativeWindow_release(g_win_new);   // never taken by the present thread
     g_win_new = w; uint64_t gen = ++g_win_gen;

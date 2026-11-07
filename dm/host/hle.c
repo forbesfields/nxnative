@@ -1,5 +1,7 @@
 // Import resolution (implemented ones go to the host, the rest go to named stubs) and host gate dispatch.
 #include "hle.h"
+#include "pauth.h"
+#include <pthread.h>
 #include <dlfcn.h>
 #include <time.h>
 
@@ -84,7 +86,7 @@ void stubs_report(void) { LOG("stubs=%u", g_nstub); }
 // ---------- Host gate dispatch ----------
 // The rewriter replaces every svc #n / mrs cntpct with a call to dm_gate; here we remember, by gate block return point (absolute address), what it originally was.
 // Lookup: open-addressing hash, one hit (it used to do module_of + a linear compare over 110 entries on every gate call, keyed by in-module offset, which would collide across modules).
-enum { G_SVC, G_CNTPCT, G_CNTVCT, G_OBS, G_SPIN };
+enum { G_SVC, G_CNTPCT, G_CNTVCT, G_OBS, G_SPIN, G_PACGA };
 // Observation gates (inserted offline from the rewriter's OBS table): number → read-only callback; with no callback attached the gate returns after one pass in and out
 static void (*g_obs_fn[OBS_MAX])(uint64_t *regs, int param); static int g_obs_have[OBS_MAX];
 void gate_obs_set(int id, void (*fn)(uint64_t *regs, int param)) { if (id <= 0 || id >= OBS_MAX) die("observation gate number out of range %d", id); g_obs_fn[id] = fn; }
@@ -96,7 +98,7 @@ static int g_ngate;
 static inline unsigned gate_h(uint64_t a) { return (unsigned)(((a >> 2) * 0x9E3779B97F4A7C15ull) >> (64 - GATE_BITS)); }
 
 void gate_register(uint64_t ret_abs, const char *kind, int arg, uint64_t orig) {
-    int k = !strcmp(kind, "svc") ? G_SVC : !strcmp(kind, "cntpct") ? G_CNTPCT : !strcmp(kind, "cntvct") ? G_CNTVCT : !strcmp(kind, "obs") ? G_OBS : !strcmp(kind, "spin") ? G_SPIN : -1;
+    int k = !strcmp(kind, "svc") ? G_SVC : !strcmp(kind, "cntpct") ? G_CNTPCT : !strcmp(kind, "cntvct") ? G_CNTVCT : !strcmp(kind, "obs") ? G_OBS : !strcmp(kind, "spin") ? G_SPIN : !strcmp(kind, "pacga") ? G_PACGA : -1;
     if (k < 0) die("unknown gate kind %s", kind);
     if (k == G_OBS) { if ((arg & 0xff) <= 0 || (arg & 0xff) >= OBS_MAX) die("observation gate number out of range %d", arg & 0xff); g_obs_have[arg & 0xff] = 1; }
     if (++g_ngate > (1 << GATE_BITS) / 4) die("gate overflow");
@@ -110,10 +112,18 @@ uint64_t svc_dispatch(int num, uint64_t *regs, uint64_t orig_addr);   // hle_svc
 // The suspend gate is hle_os.c's (dm_guest_suspend); units linked without it (host unit tests) take this one, which never suspends
 __attribute__((weak)) void dm_guest_suspend_wait(void) {}
 
+static uint64_t g_pauth_key[2];
+static pthread_once_t g_pauth_once = PTHREAD_ONCE_INIT;
+static void pauth_key_init(void) { arc4random_buf(g_pauth_key, sizeof g_pauth_key); }
+
 uint64_t gate_dispatch(uint64_t ret_addr, uint64_t *regs) {
     for (unsigned i = gate_h(ret_addr);; i = (i + 1) & ((1u << GATE_BITS) - 1)) {
         const gate_t *g = &g_gate[i];
         if (g->ret == ret_addr) switch (g->kind) {
+            case G_PACGA:
+                pthread_once(&g_pauth_once, pauth_key_init);
+                pauth_pacga(regs, (unsigned)g->arg, g_pauth_key);
+                return 0;
             case G_CNTPCT: case G_CNTVCT: {
                 guest_clock_read_wait();
                 uint64_t t = guest_ticks();    // the system counter (19.2 / 31.25 MHz); original instruction mrs xN, cntpct_el0, arg = N

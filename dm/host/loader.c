@@ -280,7 +280,7 @@ static void read_layout(module_t *m, const char *dir) {
 uint8_t *dm_fps_state;
 static const char *g_fps_mod;   // the module holding the state page (for the log)
 static void install_fps_state(module_t *m) {
-    if (m->fps_state_off + 0x40 > m->size || m->fps_state_off < m->key_page_off + m->key_page_size) die("%s: frame step state page out of range", m->name);
+    if (m->fps_state_off + 0xd8 > m->size || m->fps_state_off < m->key_page_off + m->key_page_size) die("%s: frame step state page out of range", m->name);
     dm_fps_state = m->base + m->fps_state_off; g_fps_mod = m->name;
 }
 // The settings in the state page, written when the game starts (main.c, after host loading): on iOS the loading runs at app launch, before the launcher has set DM_FPS_TARGET and
@@ -295,6 +295,37 @@ void dm_fps_state_apply(void) {
     const char *rs = getenv("DM_RENDER_SCALE"); float sc = 1.0f;
     if (rs) { char *end; sc = strtof(rs, &end); if (end == rs || *end || !(sc >= 0.5f && sc <= 1.0f)) { LOG("[RED] DM_RENDER_SCALE=%s: must be 0.5 to 1.0; keeping the game's size", rs); sc = 1.0f; } else LOG("%s: 3D views rendered at %.2f of the game's size (DM_RENDER_SCALE)", g_fps_mod, sc); }
     memcpy(dm_fps_state + 0x10, &sc, sizeof sc);
+    const char *resolution = getenv("DM_RESOLUTION_SCALE");
+    char *resolution_end = NULL;
+    float scene = resolution ? strtof(resolution, &resolution_end) : 0.0f;
+    if ((resolution && (resolution_end == resolution || *resolution_end)) || !(scene >= 0.0f && scene <= 1.0f))
+        die("DM_RESOLUTION_SCALE must be 0 to 1");
+    memcpy(dm_fps_state + 0xa0, &scene, sizeof scene);
+    LOG("scene scale %.2f (DM_RESOLUTION_SCALE)", scene);
+    const char *shadow = getenv("DM_SHADOW_SIZE"), *budget = getenv("DM_TEXTURE_BUDGET_MB"), *lod = getenv("DM_MODEL_LOD"), *size = getenv("DM_SCENE_SIZE");
+    const char *quality[] = {shadow, budget, lod}; uint32_t values[3] = {0};
+    for (int i = 0; i < 3; i++) if (quality[i] && *quality[i]) {
+        char *end; unsigned long v = strtoul(quality[i], &end, 10);
+        if (end == quality[i] || *end || v > UINT32_MAX) die("invalid native render quality value");
+        values[i] = (uint32_t)v;
+    }
+    if (values[0] && values[0] != 512 && values[0] != 1024 && values[0] != 2048 && values[0] != 4096) die("DM_SHADOW_SIZE must be 0, 512, 1024, 2048 or 4096");
+    if (values[1] && (values[1] < 128 || values[1] > 4096)) die("DM_TEXTURE_BUDGET_MB must be 0 or 128 to 4096");
+    if (values[2] > 16) die("DM_MODEL_LOD must be 0 to 16 (0 automatic, 1 full detail, 2 LOD1)");
+    memcpy(dm_fps_state + 0xa4, values, sizeof values);
+    uint32_t wh[2] = {0}; char trailing;
+    if (size && *size && (sscanf(size, "%ux%u%c", &wh[0], &wh[1], &trailing) != 2 || !wh[0] || !wh[1] || wh[0] > 0xffff || wh[1] > 0xffff)) die("DM_SCENE_SIZE must be <width>x<height>");
+    memcpy(dm_fps_state + 0xb0, wh, sizeof wh);
+    const char *streaming = getenv("DM_TEXTURE_STREAMING"); uint32_t mode = 0;
+    if (streaming && *streaming) {
+        if (streaming[1] || *streaming < '0' || *streaming > '2') die("DM_TEXTURE_STREAMING must be 0 (native), 1 (all) or 2 (blurry)");
+        mode = (uint32_t)(*streaming - '0');
+    }
+    memcpy(dm_fps_state + 0xb8, &mode, sizeof mode);
+    uint32_t unqueried[6]; for (int i = 0; i < 6; i++) unqueried[i] = UINT32_MAX;
+    memcpy(dm_fps_state + 0xc0, unqueried, sizeof unqueried);
+    if (streaming) LOG("native texture streaming policy: %u (0 native, 1 all, 2 blurry)", mode);
+    if (shadow || budget || lod || size) LOG("native render quality: shadow %u, streaming %u MiB, model LOD+1 %u, target %ux%u (0 keeps the game's setting)", values[0], values[1], values[2], wh[0], wh[1]);
     char cap[32]; snprintf(cap, sizeof cap, ", capped at %d fps", t);
     LOG("%s: frame step %s%s (%s)", g_fps_mod, !t ? "as the game sets it" : "in whole vsyncs decided by the host", t ? cap : "", e ? "DM_FPS_TARGET" : "game profile fps_target");
 }

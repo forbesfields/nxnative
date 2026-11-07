@@ -91,6 +91,7 @@ DM_MEMSTAT_DUMP	diagnostic	`=<seconds>`: with `DM_MEMSTAT`, at that second write
 DM_MEM_CAP_GB	switch	`=<GB>`: the memory watchdog exits when resident memory exceeds that many GB (default 24 on the Mac, none on iOS; `0` turns it off)
 DM_METAL_CAPTURE	diagnostic	`=1` makes `build_ipa.sh` produce a build that can write GPU frame captures (`MetalCaptureEnabled` in `Info.plist`), for `DM_GPU_CAPTURE`
 DM_METAL_HUD	player	`1` shows Apple's Metal performance HUD over the game (frame rate, frame and GPU time, memory)
+DM_MODEL_LOD	switch	Star Fox build a7730d0f: native model LOD plus one (0 automatic, 1 full, 2 LOD1, through 16; clamped by the engine). Restart required.
 DM_MOTION	switch	`0` ignores live motion: every six-axis sensor lies flat as before (a shake still plays), and neither controllers' motion sensors nor the phone's device motion are switched on (`hle_hid.c`, `motion_apple.h`, `DmGamepad.m`); the NSP script's `--no-motion` (`MOTION = False`) builds it in
 DM_MOTION_ACC_SIGN	switch	`-1` flips only GameController's acceleration, for a source that reports the specific force (+1 G up at rest) instead of the gravity direction (`motion_fusion.h`); phone and raw HID samples are already in the Switch frame
 DM_MOTION_AXES	switch	`=<map>` such as `x,-z,y`: maps Apple's controller axes to the Switch's, a signed permutation applied to acceleration and rotation alike, for a controller whose axes differ (default `x,y,z`; phone and raw HID samples are already in the Switch frame)
@@ -265,6 +266,7 @@ DM_QOS_MAP	switch	`=1` maps guest thread priority to QoS class: ≤ 44 user-inte
 DM_REC	diagnostic	`=<file>`: writes player 1's physical input (keyboard, mouse touches, controllers; never `DM_KEYS` / `DM_CTL`) to the file as `DM_KEYS` steps in presented frames, for replaying a run (`DM_KEYS=@<file>`)
 DM_REGIONS	diagnostic	`=<file>` writes the table of the SDK's address regions every 2 s (alias offset, size, where the request returns to in the game, bytes mapped, the part opened, the SDK offset the request came through; `hle_svc.c` "Address regions"); the NSP script's address region check sets it
 DM_RENDER_SCALE	player	`0.5` to `1.0`: fixes the game's 3D views at that fraction of their size and turns its dynamic resolution off, for builds with a render scale stub; `1.0` (the default) keeps it
+DM_RESOLUTION_SCALE	switch	Star Fox build a7730d0f: scene scale from 0 to 1; 0 keeps the engine setting. Vulkan has no DLSS evaluation replacement; use 0.75 or 1 on the tested path. Restart required.
 DM_RESOURCE_AOC	path	The add-on content folder the iOS build copies into the app's `aoc/` (empty for none); written by `gen_resources.py`, read by `stage_resources.sh`
 DM_RESOURCE_BUILD	switch	Package version (for example `v327680`), written to `Gen/resources.env` by `gen_resources.py`; with `DM_COPY_ROMFS=NO` the copy phase puts it in the `build=` field of the app's `romfs.id`
 DM_RESOURCE_CHAIN_H	path	Path of `dm/gfx/nvn/dmsh_chain.h`, written to `Gen/resources.env` by `build_ipa.sh`; the Xcode copy phase (`stage_resources.sh`) stops when the prepared shaders are not of its chain version
@@ -289,9 +291,11 @@ DM_RUMBLE_MIN	player	`=0..0.9`: controller rumble levels below it stay silent an
 DM_SAVE	path	This run's save folder (must be set); the device save is `<DM_SAVE>_device`, and `pso_user.tsv` goes in its parent folder; the Mac launcher, the iOS app and the NSP script set it
 DM_SAVED_CHOICES	switch	`0` ignores the player's saved choices (launcher.<VAR> in the app's preferences) and leaves them saved; the Mac launcher and the iOS settings screen
 DM_SAVE_SYNC	player	Cloud saves: the folder whose `<title ID>/save.dmsync` the save is synced through, `icloud` for iCloud Drive/nxnative Saves (the Mac); `0` or unset, off. The Mac launcher sets the folder chosen in its settings window's Cloud saves, the iPhone app the one picked in its launcher (dm/host/save_sync.h)
+DM_SCENE_SIZE	switch	Star Fox build a7730d0f: native scene target as widthxheight before scaled allocations, e.g. 960x540. Unset keeps the engine setting. Restart required.
 DM_SCHEME_NAME	switch	Set by `build_ipa.sh` itself for xcodegen's `project.yml`: the Xcode scheme name, `DmIOS`, or `<display name> (<title ID>)` for a project prepared with `--prepare-xcode`
 DM_SCREEN_MATCH	switch	`0` keeps the screen's refresh rate in fullscreen; by default a Mac screen whose rate is not a multiple of the game's frame rate switches to one that is (144 → 120 Hz)
 DM_SF_TRACE	diagnostic	`=1` logs every request on the game's own HIPC client sessions that the host answers (`hle_sf.c`)
+DM_SHADOW_SIZE	switch	Star Fox build a7730d0f: native shadow size, 0 (engine setting), 512, 1024, 2048 or 4096. Restart required.
 DM_SHAKE_G	switch	`=<G>`: on iOS, the acceleration beyond gravity above which a flick of the phone shakes the controller's six-axis sensor (default 1.5)
 DM_SHARED_FONT	path	Font file served for every shared-font type except the Nintendo extension (default `$DM_FONT_DIR/standard.ttf`, then macOS's Arial Unicode)
 DM_SHARED_FONT_EXT	path	Font file served for shared-font type 5, the Nintendo extension with the button icons (default `$DM_FONT_DIR/nintendo_ext.ttf`, made by `make_ext_font.py`)
@@ -325,6 +329,8 @@ DM_TEST_SWKBD_LAG_MS	diagnostic	`=<ms>` sleeps that long between the keyboard ha
 DM_TEST_TRANSFORM_FEEDBACK	test	Path to the native t_transform_feedback executable used by the Python feedback tests
 DM_TEST_UP_LEAK	diagnostic	`=1` keeps the old upload staging block instead of retiring it, as before the fix, to measure the leak
 DM_TEST_UP_LOST	diagnostic	`=<batch index>` treats that batch of uploads as dropped, to exercise the re-upload path
+DM_TEXTURE_BUDGET_MB	switch	Star Fox build a7730d0f: native texture streaming budget in MiB, 0 (engine setting) or 128 to 4096. Restart required.
+DM_TEXTURE_STREAMING	switch	Star Fox build a7730d0f: native texture streaming policy, 0 (engine setting), 1 (all) or 2 (blurry). Applied to initialization, package loading, renderer updates and cleanup. Restart required.
 DM_THERMAL_CAP	switch	`0` turns off the thermal cap, which holds the frame step at 30 fps while iOS reports a serious or critical thermal state (on by default)
 DM_THR	diagnostic	`=1` logs each SVC (except `SleepThread`) with its first four arguments, and each `CreateThread` with entry, stack, priority and core
 DM_THRCPU	diagnostic	`=<tsv path>[,<seconds>]` writes each thread's CPU time (100% = one core) and the total every interval (default 10 s); on iOS a relative path is under `Documents`
@@ -412,6 +418,7 @@ DM_VK_PROF	diagnostic	`1` (Android, live: the next submission, off) times the dr
 DM_VK_PSO_ASYNC	switch	`=<n>` (Android, restart, 0; at most 4) threads that make the graphics pipelines the frame path misses (a cache-only try still runs on the frame path), their draws skipped until made, so a new pipeline costs no frame wait; `0` off: the frame waits for it. Compute and mesh pipelines stay on the frame path. With GPL off (a driver that refuses libraries, as Qualcomm's on the Adreno 840) there is no cache-only try, so a pipeline the pipeline cache already holds is made in the background too and its draws skipped for a moment. The threads run at nice 10
 DM_VK_PUSH_DEDUP	switch	`0` (Android, live, 1) a push descriptor update equal to the last one of its bind point is pushed again instead of skipped
 DM_VK_PUSH_DELTA	diagnostic	`1` (Android, live, off) push descriptor updates write only the descriptors that changed since the last push of the same set; off until phone-checked (a driver that mishandles incremental pushes shows wrong textures)
+DM_VK_ROBUST	diagnostic	Android, default 0: enable supported core robust buffer access and robustness2 buffer/image access when creating the device. Supported null descriptors are enabled independently. Restart required.
 DM_VK_ROWS	switch	`0` (Android, live: the next re-upload, 1) a tracked linear 2D texture whose storage the CPU wrote is re-uploaded whole instead of only the rows between the written bytes
 DM_VK_SHARED_SPILL_MB	switch	`=<MiB>` (Android, default 16): the shared memory spill buffer of compute programs over the device's shared memory (`vka_draw.c` `spill_buf`); a dispatch with more workgroups than its slices runs in parts
 DM_VK_SHLIB	path	`=<file>` (Android, restart) the Vulkan shader library to load; default `<module dir>/shaders/<Vulkan chain dir>/<library file>`; the replayer does not take it from a capture; `t_android_shlib` reads it for its real-library test
