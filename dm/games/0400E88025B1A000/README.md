@@ -156,3 +156,30 @@ hides its implemented placed-memory dependency on Android 13). The game
 still lost the GPU after about 130 seconds. Disabling the replay worker
 caused missing text on both drivers and was rejected. Turnip 25.3 and the
 baseline 540p preset are restored; none of these trials is a stability fix.
+
+Further one-variable trials also failed. Robust buffer and image access
+(`DM_VK_ROBUST=1`) produced two recoverable kernel GPU faults during a
+roughly 13-minute tutorial run. A temporary worker timing probe that waited
+for each present to be replayed, while retaining the replay thread, kept
+text intact and reached 60.2 presented fps / 14.97 ms GPU in the first
+lesson, but also produced a kernel GPU fault. The probe was removed.
+Removing the forced Turnip `sysmem` mode lost the GPU near 59 seconds,
+during the intro. These observations reject the tested settings as fixes;
+they do not identify the faulting shader or establish a root cause.
+
+A second temporary probe waited for the last reserved GPU submission at
+each worker-backed present. The same first-lesson workload fell to 49.8
+presented fps / 14.48 ms GPU, then also lost the GPU. The probe was removed
+and the original APK and baseline preset were restored. Thus neither
+tested CPU/GPU timing change is a stability fix.
+
+A captured tutorial flight frame now executes all 587 draws in the
+standalone replayer after its lazy-buffer-placement fix (see
+[Android testing](../../../android/TESTING.md)). Three replays took 14.03,
+14.03 and 14.50 ms GPU with no new kernel fault, but all differ from the
+captured live image. Core validation reported no error; full GPU-assisted
+validation itself faulted without an invalid-access report. GPU-assisted
+validation with forced robustness completed at 1706 ms GPU, also without
+an invalid-access report, and retained the same image mismatch. These
+results do not reproduce or diagnose the game's intermittent hang. All
+temporary validation properties were restored. Combat stability is open.
