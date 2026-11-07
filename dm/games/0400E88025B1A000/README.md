@@ -49,9 +49,14 @@ On an M5 Pro with 24 GB, macOS 27.0, handheld mode and Resolution 100% give 1920
 
 ## Experimental Mac test modes
 
-The optional selector in `mac_test_launcher.m` has two independent dropdowns:
-**Resolution: 1080p / 4K** and **Frame rate: 60 fps / 120 fps / Unlocked**.
-All six combinations are available in one existing test app. All modes use
+The optional selector in `mac_test_launcher.m` has three independent dropdowns:
+**Resolution: 1080p / 4K**, **Frame rate: 60 fps / 120 fps / Unlocked**, and
+**Debug display: Off / Compact FPS / Full debug**. Debug display defaults to Off.
+Play saves all three choices; Cancel leaves the saved choices unchanged. Compact
+FPS uses Metal's `MTL_HUD_ELEMENTS=fps`; Full debug uses its `Full` preset. The
+selector explicitly sets `DM_METAL_HUD` and `MTL_HUD_ENABLED`, so Off also overrides
+an inherited HUD enable switch. All six resolution/frame-rate combinations are
+available with each debug display. All modes use
 one RomFS, shader set and save folder. `scripts/configure_starfox_test.py` updates
 only that app's executables and rewritten main, backing up changed files only.
 It deliberately accepts the isolated `org.nxnative.starfox.120hz-test` bundle,

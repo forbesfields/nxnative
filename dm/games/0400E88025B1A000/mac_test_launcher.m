@@ -6,8 +6,11 @@ int main(int argc, char **argv) {
     @autoreleasepool {
         NSArray<NSString *> *resolutions = @[@"1080p", @"4k"];
         NSArray<NSString *> *rates = @[@"60", @"120", @"uncapped"];
+        NSArray<NSString *> *displays = @[@"off", @"fps", @"full"];
         NSUserDefaults *prefs = NSUserDefaults.standardUserDefaults;
         NSString *mode = [prefs stringForKey:@"test.mode"] ?: @"1080p-uncapped";
+        NSString *display = [prefs stringForKey:@"test.debugDisplay"] ?: @"off";
+        if (![displays containsObject:display]) display = @"off";
         BOOL show = YES;
         for (int i = 1; i < argc; i++) {
             if (!strcmp(argv[i], "--mode") && i + 1 < argc) { mode = @(argv[++i]); show = NO; }
@@ -24,22 +27,30 @@ int main(int argc, char **argv) {
             alert.messageText = @"Star Fox test settings";
             alert.informativeText = @"Choose the resolution and frame rate. 4K renders at 3840 × 2160 and scales to your screen.";
             [alert addButtonWithTitle:@"Play"]; [alert addButtonWithTitle:@"Cancel"];
-            NSView *controls = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 84)];
+            NSView *controls = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 124)];
             NSTextField *resLabel = [NSTextField labelWithString:@"Resolution"];
-            resLabel.frame = NSMakeRect(0, 52, 120, 22); [controls addSubview:resLabel];
-            NSPopUpButton *res = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(130, 48, 190, 32) pullsDown:NO];
+            resLabel.frame = NSMakeRect(0, 92, 120, 22); [controls addSubview:resLabel];
+            NSPopUpButton *res = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(130, 88, 190, 32) pullsDown:NO];
             [res addItemsWithTitles:@[@"1080p", @"4K"]]; [res selectItemAtIndex:[resolutions indexOfObject:parts[0]]];
             res.accessibilityLabel = @"Resolution"; [controls addSubview:res];
             NSTextField *fpsLabel = [NSTextField labelWithString:@"Frame rate"];
-            fpsLabel.frame = NSMakeRect(0, 12, 120, 22); [controls addSubview:fpsLabel];
-            NSPopUpButton *fps = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(130, 8, 190, 32) pullsDown:NO];
+            fpsLabel.frame = NSMakeRect(0, 52, 120, 22); [controls addSubview:fpsLabel];
+            NSPopUpButton *fps = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(130, 48, 190, 32) pullsDown:NO];
             [fps addItemsWithTitles:@[@"60 fps", @"120 fps", @"Unlocked"]]; [fps selectItemAtIndex:[rates indexOfObject:parts[1]]];
             fps.accessibilityLabel = @"Frame rate"; [controls addSubview:fps];
+            NSTextField *debugLabel = [NSTextField labelWithString:@"Debug display"];
+            debugLabel.frame = NSMakeRect(0, 12, 120, 22); [controls addSubview:debugLabel];
+            NSPopUpButton *debug = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(130, 8, 190, 32) pullsDown:NO];
+            [debug addItemsWithTitles:@[@"Off", @"Compact FPS", @"Full debug"]]; [debug selectItemAtIndex:[displays indexOfObject:display]];
+            debug.accessibilityLabel = @"Debug display"; [controls addSubview:debug];
             alert.accessoryView = controls;
             [NSApp activateIgnoringOtherApps:YES];
             if ([alert runModal] != NSAlertFirstButtonReturn) return 0;
             mode = [NSString stringWithFormat:@"%@-%@", resolutions[res.indexOfSelectedItem], rates[fps.indexOfSelectedItem]];
+            display = displays[debug.indexOfSelectedItem];
             [prefs setObject:mode forKey:@"test.mode"];
+            [prefs setObject:display forKey:@"test.debugDisplay"];
+            [prefs synchronize];   // flush choices before execl replaces this process
             [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];   // the host owns the game's windows, as in Launcher.swift
         }
         parts = [mode componentsSeparatedByString:@"-"];
@@ -52,7 +63,10 @@ int main(int argc, char **argv) {
         setenv("DM_PRESENT_HZ", "0", 1); setenv("DM_PRESENT_LINK", "0", 1);
         setenv("DM_PRESENT_INTERVAL", "game", 1);
         setenv("DM_LAUNCHER", "0", 1); setenv("DM_SAVED_CHOICES", "0", 1);
-        setenv("DM_METAL_HUD", "1", 1);
+        BOOL hud = ![display isEqualToString:@"off"];
+        setenv("DM_METAL_HUD", hud ? "1" : "0", 1);
+        setenv("MTL_HUD_ENABLED", hud ? "1" : "0", 1);
+        setenv("MTL_HUD_ELEMENTS", [display isEqualToString:@"fps"] ? "fps" : "Full", 1);
         NSString *core = [NSBundle.mainBundle.executablePath.stringByDeletingLastPathComponent stringByAppendingPathComponent:@"nxnative-core"];
         execl(core.fileSystemRepresentation, core.fileSystemRepresentation, "--no-launcher", NULL);
         perror("Starting Star Fox"); return 1;
