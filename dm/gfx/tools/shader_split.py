@@ -170,7 +170,7 @@ def nvn2_stage(ctl, code):   # an NVN2 shader's stage: compute, task and mesh by
 def bahs_shaders(d, label):
     rsz, region = field(d, '<II', 0x18, f'{label} BAHS header')
     if region + rsz > len(d): red(f'{label} BAHS code region out of bounds')
-    out = []
+    found = []
     for a in range(0, region - 16, 4):
         off, z, csz, rel = struct.unpack_from('<IIIi', d, a)
         nvn2 = 0x48 <= csz < 0x10000 and 0 <= a + rel and a + rel + csz <= region and nvn2_ctl(d[a + rel:a + rel + csz])
@@ -183,7 +183,18 @@ def bahs_shaders(d, label):
         code, ctl = d[region + off:region + off + n], d[c:c + csz]
         st = nvn2_stage(ctl, code) if nvn2 else 'cs' if code[:4] == CS_MAGIC else sph_stage(code) if code[:4] == GFX_MAGIC else None
         if not st or check(label, st, ctl, code): continue
-        out.append((f'{label}#BAHS@{a:#x}', st, ctl, code))
+        found.append((a, c, (f'{label}#BAHS@{a:#x}', st, ctl, code)))
+    # A program entry never lies inside a control section. An NVN2 section's +0x38..+0x47 (instruction length, c1 start and end, code length: 0x1100, 0, 0x1100, 0x1100) reads as
+    # an entry whose offset, control length and control distance are all that length: Ocarina of Time's agl_common.sharcb@0x357f0 paired compute shader 30's control with a vertex
+    # shader's code, a shader the game never loads, and its SPH came to the translator as an instruction ("Ampere instruction 481 at 0x0"). Each section counts with its own
+    # length (ctl_len), not the length an entry gives it, which for such a false entry covers real entries after it
+    spans = {(c, c + ctl_len(s[2])) for _, c, s in found}
+    out = [s for a, _, s in found if not any(lo <= a < hi for lo, hi in spans)]
+    # NVN2 records can also carry trailing metadata beyond the control section. When the binary array validates, only its records are program entries.
+    array = bahs_binary_array(d, [o[0] for o in out])
+    if array:
+        records = {a for a, _ in array[1]}
+        out = [s for s in out if int(s[0].rsplit('@', 1)[1], 16) in records]
     bahs_variations(d, label, [o[0] for o in out])
     return out
 
@@ -229,13 +240,8 @@ def ndsr_shaders(d, label):
         elif st == 'ps' and prog: BAHS_VAR[prog] = BAHS_VAR[where] = f'{label}#NDSR#{prog.rsplit("@", 1)[1]}'; prog = None
     return out
 
-BAHS_VAR = {}   # BAHS entry label → the program variation it belongs to (bahs_variations; var_pairs pairs by it)
-def bahs_variations(d, label, entries):
-    """The variations of an agl BAHS file's programs, for var_pairs. The table area holds a binary array (u32 byte size, u32 count, then per binary a record: u32 record size, u32 kind
-    (0 vertex, 1 fragment, 3 compute), two u32, the 16-byte entry bahs_shaders reads) and right after it a program array (u32 byte size, u32 count, then per program: u32 record size,
-    u32 name length, u32 stage mask, u32 index of its first binary, its name, its macros). A program's binaries run from its first index to the next program's; the n-th vertex binary
-    and the n-th fragment binary in that range are one variation. Breath of the Wild: 109 of the 543 pairs drawn on a cold start in Zora's Domain came from these files, and none was in
-    shader_pairs.tsv, which paired only BNSH variations. A file whose arrays do not read back (another layout, or an entry bahs_shaders took that no record holds) gives no pairs"""
+def bahs_binary_array(d, entries):
+    """Validated binary array → (end, [(entry offset, kind)]), or None for another layout. Up to 1 % of scan candidates may be stray metadata matches."""
     if not entries: return
     taken = {int(e.rsplit('@', 1)[1], 16) for e in entries}
     arr = min(taken) - 0x18
@@ -248,9 +254,21 @@ def bahs_variations(d, label, entries):
         rs, kind = struct.unpack_from('<II', d, o)
         if rs < 0x20: return
         recs.append((o + 0x10, kind)); o += rs
-    # every entry bahs_shaders took is a record's, but for a stray match of its scan (Donkey Kong Bananza's agl_common: 1,556 taken, 1,555 records): up to 1 % may lie
-    # outside the array; only the records' entries are paired
     if o != arr + asz or len(taken - {a for a, _ in recs}) > max(1, len(taken) // 100): return
+    return o, recs
+
+
+BAHS_VAR = {}   # BAHS entry label → the program variation it belongs to (bahs_variations; var_pairs pairs by it)
+def bahs_variations(d, label, entries):
+    """The variations of an agl BAHS file's programs, for var_pairs. The table area holds a binary array (u32 byte size, u32 count, then per binary a record: u32 record size, u32 kind
+    (0 vertex, 1 fragment, 3 compute), two u32, the 16-byte entry bahs_shaders reads) and right after it a program array (u32 byte size, u32 count, then per program: u32 record size,
+    u32 name length, u32 stage mask, u32 index of its first binary, its name, its macros). A program's binaries run from its first index to the next program's; the n-th vertex binary
+    and the n-th fragment binary in that range are one variation. Breath of the Wild: 109 of the 543 pairs drawn on a cold start in Zora's Domain came from these files, and none was in
+    shader_pairs.tsv, which paired only BNSH variations. A file whose arrays do not validate gives no pairs; validated binary arrays exclude stray scan matches before pairing"""
+    array = bahs_binary_array(d, entries)
+    if not array: return
+    o, recs = array; acnt = len(recs)
+    taken = {int(e.rsplit('@', 1)[1], 16) for e in entries}
     psz, pcnt = struct.unpack_from('<II', d, o)
     if o + psz > len(d) or not pcnt: return
     q, bases = o + 8, []

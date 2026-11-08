@@ -1,6 +1,6 @@
 # Mario Kart World (`0400C3F00006E000`)
 
-A Switch 2 game. Brought up on the base game (v0), SDK 19.3.3 built for the Switch 2 (`sdk` names its spec `Ounce`), NVN2 API 231.16. Nintendo EPD's engine (sead / agl / gsys, Phive, Havok, Pia), modules `main`, `subsdk0` (a Mono runtime, `nn::ecli`) and `sdk`. **Reaches a race on the Mac** (M6, 16 GB): the title, the main menu, the Single Player and Grand Prix menus, character, kart, cup and class selection, the Mushroom Cup's opening and the first race of Mario Bros. Circuit at 50cc, driven with items, at 60 fps on that Mac (see [Frame rate](#frame-rate)). Update 1.8.0 is packed from a profile derived from this one; it is not on this Mac and has not been run (see [1.8.0](#180)). iOS is not tested.
+A Switch 2 game. Brought up on the base game (v0), SDK 19.3.3 built for the Switch 2 (`sdk` names its spec `Ounce`), NVN2 API 231.16. Nintendo EPD's engine (sead / agl / gsys, Phive, Havok, Pia), modules `main`, `subsdk0` (a Mono runtime, `nn::ecli`) and `sdk`. **Reaches a race on the Mac** (M6, 16 GB): the title, the main menu, the Single Player and Grand Prix menus, character, kart, cup and class selection, the Mushroom Cup's opening and the first race of Mario Bros. Circuit at 50cc, driven with items, at 60 fps on that Mac (see [Frame rate](#frame-rate)). Update 1.8.0 is packed from a profile derived from this one. A standalone 1.8.0 NUP now boots to a rendered 3D intro on the Mac; race testing is separate from the base-game results above (see [1.8.0](#180)). iOS is not tested.
 
 ## What it needs
 
@@ -82,7 +82,31 @@ The work folder `0400C3F00006E000-work` beside the dump has `rewrite.sh`, `rebui
 
 ## 1.8.0
 
-Update 1.8.0 (v917504, SDK 21.4.0) is not on this Mac. Pull request #1116 ported it, and its facts (not its code) went into the host for this profile: the packing of a version with a `subsdk1`, and the Switch 2 services 1.8.0 calls at boot, which the base game does not import (the Nmouse pointer, GameChat's room event and camera storage, the camera context, the graphics system check, the HDR Bezier metadata and its clears; [services.md](../../../docs/reference/services.md#the-camera-through-the-graphics-system)). The NSP script packs it from a profile derived from this one, with its own shader tables. None of it has been run on 1.8.0.
+Update 1.8.0 (v917504, SDK 21.4.0) boots from a standalone NUP on the Mac. Its intro renders Mario, a kart, road, hills and the truck. This startup check uses a separate diagnostic save; it does not yet establish race behavior or high frame-rate simulation timing. The startup address check reaches alias +2.45 GB within the profile's 4 GB region, over its first 15 seconds in `nnMain`.
+
+The extracted module build IDs are `main=d00e4f399e411d0613aa8d26b1c02fef`, `subsdk0=746302f49f095cfca3d2188423c2bd77`, `subsdk1=8dec9c0b1bed821364e77b10a07b9a28`, and `sdk=7a68b13d88183767fb9c7babffe89f3d`. The package still uses a derived profile, with its own shader tables; fixed-address patches for registered builds do not carry over.
+
+Pull request #1116 supplied the service facts used by the host: the packing of a version with a `subsdk1`, and the Switch 2 services 1.8.0 calls at boot, which the base game does not import (the Nmouse pointer, GameChat's room event and camera storage, the camera context, the graphics system check, the HDR Bezier metadata and its clears; [services.md](../../../docs/reference/services.md#the-camera-through-the-graphics-system)).
+
+The split found three false BAHS entries: control words and trailing record metadata in `agl_common.sharcb`, and trailing metadata in `DrivePassShaderDefault.sharcb`. Two paired a compute control section with graphics code and failed on `Ampere instruction 481 at 0x0`; the third compiled an unrelated vertex combination. The parser excludes entries inside control headers and, when the binary array validates, accepts only that array's records. All 11,601 valid shaders translate for the Mac. See [BAHS in agl sharcb](../../../docs/reference/shaders.md#bahs-in-agl-sharcb).
+
+## Mac test selector
+
+After packing a self-contained Mac app, attach the native selector:
+
+```sh
+python3 scripts/build_ipa_from_nsp.py '/path/to/Mario Kart World.nup' \
+  --platform mac-app --work-dir '/path/to/0400C3F00006E000_build' \
+  -o '/path/to/Mario Kart World.app'
+python3 scripts/configure_mario_kart_test.py '/path/to/Mario Kart World.app' \
+  --backup '/path/to/new-launcher-backup'
+```
+
+Quit the app before updating it. The installer keeps the packed launcher as `nxnative-core`, backs up the small executable/signature files, and ad-hoc signs and verifies the app. A later pack replaces the selector; run the installer again with a new backup directory. It does not copy the RomFS or shaders, change the save namespace, or apply Star Fox patches.
+
+The selector has three menus. **1080p** requests a 1080p output limit in handheld mode; **4K** requests a 2160p output limit in docked mode. These are output requests: the game chooses its internal scene resolution. **60 fps** is the default. **120 fps** and **Unlocked** change host presentation pacing only and are marked experimental. The game may keep a 60 fps limiter or interval, and correct simulation speed at higher rates has not been established. **Off**, **Compact FPS** and **Full debug** control the Metal HUD. Full uses explicit metric names rather than the unsupported `Full` preset.
+
+Play saves the choices; Cancel leaves them unchanged. All modes share one RomFS, shader set, and save folder. For repeatable diagnostics, `Contents/MacOS/nxnative --mode 1080p-60 --debug-display fps` bypasses the dialog without saving choices. Other modes are `1080p-120`, `1080p-uncapped`, `4k-60`, `4k-120`, and `4k-uncapped`; debug values are `off`, `fps`, and `full`.
 
 ## Open
 
