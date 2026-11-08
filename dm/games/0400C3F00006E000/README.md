@@ -1,6 +1,6 @@
 # Mario Kart World (`0400C3F00006E000`)
 
-A Switch 2 game. Brought up on the base game (v0), SDK 19.3.3 built for the Switch 2 (`sdk` names its spec `Ounce`), NVN2 API 231.16. Nintendo EPD's engine (sead / agl / gsys, Phive, Havok, Pia), modules `main`, `subsdk0` (a Mono runtime, `nn::ecli`) and `sdk`. **Reaches a race on the Mac** (M6, 16 GB): the title, the main menu, the Single Player and Grand Prix menus, character, kart, cup and class selection, the Mushroom Cup's opening and the first race of Mario Bros. Circuit at 50cc, driven with items, at 60 fps on that Mac (see [Frame rate](#frame-rate)). Update 1.8.0 is packed from a profile derived from this one. A standalone 1.8.0 NUP now boots to a rendered 3D intro on the Mac; race testing is separate from the base-game results above (see [1.8.0](#180)). iOS is not tested.
+A Switch 2 game. Brought up on the base game (v0), SDK 19.3.3 built for the Switch 2 (`sdk` names its spec `Ounce`), NVN2 API 231.16. Nintendo EPD's engine (sead / agl / gsys, Phive, Havok, Pia), modules `main`, `subsdk0` (a Mono runtime, `nn::ecli`) and `sdk`. **Reaches a race on the Mac** (M6, 16 GB): the title, the main menu, the Single Player and Grand Prix menus, character, kart, cup and class selection, the Mushroom Cup's opening and the first race of Mario Bros. Circuit at 50cc, driven with items, at 60 fps on that Mac (see [Frame rate](#frame-rate)). Update 1.8.0 is packed from a profile derived from this one. A standalone 1.8.0 NUP reaches a solo Time Trial on the Mac; these results are separate from the base-game results above (see [1.8.0](#180)). iOS is not tested.
 
 ## What it needs
 
@@ -82,7 +82,17 @@ The work folder `0400C3F00006E000-work` beside the dump has `rewrite.sh`, `rebui
 
 ## 1.8.0
 
-Update 1.8.0 (v917504, SDK 21.4.0) boots from a standalone NUP on the Mac. Its intro renders Mario, a kart, road, hills and the truck. This startup check uses a separate diagnostic save; it does not yet establish race behavior or high frame-rate simulation timing. The startup address check reaches alias +2.45 GB within the profile's 4 GB region, over its first 15 seconds in `nnMain`.
+Update 1.8.0 (v917504, SDK 21.4.0) boots from a standalone NUP on the Mac. Its intro renders Mario, a kart, road, hills and the truck. A separate diagnostic save reaches Time Trials, Mario, Standard Kart and a solo Mario Bros. Circuit race. The startup address check reaches alias +2.45 GB within the profile's 4 GB region, over its first 15 seconds in `nnMain`.
+
+### High-rate speed-up
+
+On an M5 Pro, 24 GB, macOS 27.0 (2026-11-07), Unlocked ran character selection at about 200 fps with fast animation. In a stationary Mario Bros. Circuit Time Trial, the clock advanced 19.813 game seconds over 10.003 real seconds uncapped, and 19.550 over 10.005 on a repeat. Host pacing at 120 Hz gave 19.714 over 10.004; at 60 Hz it gave 9.877 over 10.005. These are screenshot request spans, with capture uncertainty below about 0.35 seconds; they distinguish 2x from normal speed, not small timing differences.
+
+The build's frame controller at `main+0x69cbb0` calculates an integer step in framework `+0x214`, clamps it to at least 1 (`+0x69ccec`) and at most 2 (`+0x69cdd4`), then adds it to a global frame counter at `+0x69cd40` before the calculation callback. One frame therefore advances at least one nominal 60 Hz step. Raising host presentation pacing does not halve that step. The selector now keeps 60 Hz pacing and display synchronization, disables 120/Unlocked, rejects explicit high-rate CLI requests, and uses 60 for older saved high-rate choices. This is a safe pacing restriction, **not** a high-rate simulation patch.
+
+The installed selector was then tested through its actual dialog: an older saved Unlocked choice displayed 60, the two high-rate rows were greyed out, Cancel left preferences unchanged, and Play saved 60 while preserving 4K/Full debug. In the installed app, the same stationary Mario Bros. Circuit trial at 1080p advanced 10.000 game seconds over 10.005 real seconds, then 9.917 over 10.001 on a repeat. The 4K preset gave 9.984 over 10.001 and its Metal HUD showed 60 fps. Acceleration, steering and fall recovery also responded in a short 1080p run. This does not establish internal 4K scene resolution. Verification level: `live-verified` for the selector and normal-speed clock check.
+
+A diagnostic memory-only probe changed three phase-dispatch literals from 1/60 to 1/120 (`main+0x8df58`, `+0x8e098`, `+0x8e1d0`). The race clock still advanced 19.784 seconds over 10.004 real seconds at 120 Hz. All three instructions were restored; no such patch is shipped. A complete unlock must account for the integer frame counters and each simulation/animation consumer. Later courses, split-screen, full-race physics, movies and audio synchronization remain unverified.
 
 The extracted module build IDs are `main=d00e4f399e411d0613aa8d26b1c02fef`, `subsdk0=746302f49f095cfca3d2188423c2bd77`, `subsdk1=8dec9c0b1bed821364e77b10a07b9a28`, and `sdk=7a68b13d88183767fb9c7babffe89f3d`. The package still uses a derived profile, with its own shader tables; fixed-address patches for registered builds do not carry over.
 
@@ -104,9 +114,9 @@ python3 scripts/configure_mario_kart_test.py '/path/to/Mario Kart World.app' \
 
 Quit the app before updating it. The installer keeps the packed launcher as `nxnative-core`, backs up the small executable/signature files, and ad-hoc signs and verifies the app. A later pack replaces the selector; run the installer again with a new backup directory. It does not copy the RomFS or shaders, change the save namespace, or apply Star Fox patches.
 
-The selector has three menus. **1080p** requests a 1080p output limit in handheld mode; **4K** requests a 2160p output limit in docked mode. These are output requests: the game chooses its internal scene resolution. **60 fps** is the default. **120 fps** and **Unlocked** change host presentation pacing only and are marked experimental. The game may keep a 60 fps limiter or interval, and correct simulation speed at higher rates has not been established. **Off**, **Compact FPS** and **Full debug** control the Metal HUD. Full uses explicit metric names rather than the unsupported `Full` preset.
+The selector has three menus. **1080p** requests a 1080p output limit in handheld mode; **4K** requests a 2160p output limit in docked mode. These are output requests: the game chooses its internal scene resolution. **60 fps** is the supported rate. **120 fps** and **Unlocked** remain visible but disabled: higher rates speed up this game's simulation (see [High-rate speed-up](#high-rate-speed-up)). Older saved high-rate choices fall back to 60 without rewriting preferences until Play. **Off**, **Compact FPS** and **Full debug** control the Metal HUD. Full uses explicit metric names rather than the unsupported `Full` preset.
 
-Play saves the choices; Cancel leaves them unchanged. All modes share one RomFS, shader set, and save folder. For repeatable diagnostics, `Contents/MacOS/nxnative --mode 1080p-60 --debug-display fps` bypasses the dialog without saving choices. Other modes are `1080p-120`, `1080p-uncapped`, `4k-60`, `4k-120`, and `4k-uncapped`; debug values are `off`, `fps`, and `full`.
+Play saves the choices; Cancel leaves them unchanged. All modes share one RomFS, shader set, and save folder. For repeatable diagnostics, `Contents/MacOS/nxnative --mode 1080p-60 --debug-display fps` bypasses the dialog without saving choices. The other supported mode is `4k-60`; debug values are `off`, `fps`, and `full`. Explicit `*-120` or `*-uncapped` requests exit with status 2 and an explanation before starting the core.
 
 ## Open
 
@@ -118,7 +128,7 @@ Play saves the choices; Cancel leaves them unchanged. All modes share one RomFS,
 
 ## Found on this game
 
-- [A NUP with complete standalone updates stops at "no base game"](../../../docs/reference/packing.md#a-nup-with-complete-standalone-updates-stops-at-no-base-game) (packing reproduced with the base dump; 1.8.0 gameplay remains untested)
+- [A NUP with complete standalone updates stops at "no base game"](../../../docs/reference/packing.md#a-nup-with-complete-standalone-updates-stops-at-no-base-game) (standalone 1.8.0 also reaches a solo Time Trial)
 - [Large sparse textures as Metal placement sparse textures](../../../docs/reference/nvn-objects.md#large-sparse-textures-as-metal-placement-sparse-textures)
 - [Physical pages mapped at several places of a placement sparse texture](../../../docs/reference/nvn-objects.md#physical-pages-mapped-at-several-places-of-a-placement-sparse-texture)
 - [Large pools wrapped in chunks](../../../docs/reference/nvn-objects.md#large-pools-wrapped-in-chunks)
